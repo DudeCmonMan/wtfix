@@ -45,10 +45,13 @@ repository is what gets published.
 
 ## Build
 
-- Local: MinGW-w64 GCC (WinLibs or MSYS2 MINGW64, msvcrt), Visual Studio 2022 C++ tools and the NVIDIA DLSS SDK
-  v310.9.16 in `sdk/` (or `DLSS_SDK`). `sh build.sh` builds into `build/`; `sh package.sh` writes
-  `dist/wtfix_<version>.zip` with the files at its root and the licenses in `wtfix/licenses`.
-- CI uses the same scripts; the SDK comes from NVIDIA/DLSS at a pinned commit, its DLL and library checked by SHA-256.
+- Local, from Git Bash: MinGW-w64 GCC (WinLibs or MSYS2 MINGW64, msvcrt), Visual Studio 2022 C++ tools and Python.
+  `sh build.sh` builds into `build/`; `sh package.sh` writes `dist/wtfix_<version>.zip` with the files at its root and
+  the licenses in `wtfix/licenses`.
+- The NVIDIA DLSS SDK is never committed: `tools/get_dlss_sdk.py` fetches the files the build needs from NVIDIA/DLSS
+  at a pinned commit into `sdk/` (or `DLSS_SDK`), each checked by SHA-256; `build.sh` runs it. A new SDK version means
+  a new commit and new hashes there.
+- CI uses the same scripts. `build/`, `dist/` and `sdk/` are ignored.
 - Warnings are errors. `wtfix.hdll` must not need MinGW runtime DLLs (`build.sh` checks).
 
 ## Not shipped

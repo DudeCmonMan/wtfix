@@ -22,30 +22,8 @@ jobs:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
-
-      # NVIDIA DLSS SDK v310.9.16, pinned by commit and checked by hash.
-      - uses: actions/checkout@v4
-        with:
-          repository: NVIDIA/DLSS
-          ref: 9981c6350dc58c0ce21f024fd65e31e851c31689
-          path: sdk
-          filter: blob:none
-          sparse-checkout-cone-mode: false
-          sparse-checkout: |
-            /include/
-            /lib/Windows_x86_64/x64/nvsdk_ngx_s.lib
-            /lib/Windows_x86_64/rel/nvngx_dlss.dll
-            /LICENSE.txt
-      - shell: pwsh
-        run: |
-          $want = @{
-            'sdk/lib/Windows_x86_64/rel/nvngx_dlss.dll' = 'D00B5B0AB29C3CA101B70C3A5ECB3A01B7EF33766A3383A28A18623083E6123E'
-            'sdk/lib/Windows_x86_64/x64/nvsdk_ngx_s.lib' = '7B9A5239C1145AF5F645AB472AA066F9EA79DB36AC819562312AAE69D65F3765'
-          }
-          foreach ($f in $want.Keys) {
-            $h = (Get-FileHash $f -Algorithm SHA256).Hash
-            if ($h -ne $want[$f]) { throw "$f has SHA-256 $h" }
-          }
+      # NVIDIA DLSS SDK at a pinned commit, every file checked by SHA-256.
+      - run: python -I tools/get_dlss_sdk.py sdk
 
       - uses: msys2/setup-msys2@v2
         with:

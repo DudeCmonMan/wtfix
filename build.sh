@@ -1,5 +1,5 @@
 #!/bin/sh
-# Builds winmm.dll, wtfix.hdll and wtdlss.dll into build/. DLSS_SDK: the NVIDIA DLSS SDK (default: sdk/).
+# Builds winmm.dll, wtfix.hdll and wtdlss.dll into build/. DLSS_SDK: the NVIDIA DLSS SDK (default: sdk/, fetched).
 set -e
 HERE=$(cd "$(dirname "$0")" && pwd)
 OUT=$HERE/build
@@ -39,4 +39,5 @@ if objdump -p "$OUT/wtfix.hdll" "$OUT/winmm.dll" | grep -iE "DLL Name: (libgcc|l
   echo "wtfix needs MinGW runtime DLLs"; exit 1
 fi
 
+python -I "$HERE/tools/get_dlss_sdk.py" "$SDK"
 cmd //c "$(cygpath -w "$HERE/dlss/build.cmd")" "$(cygpath -w "$OUT")" "$(cygpath -w "$SDK")"
