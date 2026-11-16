@@ -59,7 +59,8 @@ repository is what gets published.
 ## Porting a change from development
 
 Copy the changed sources, keep the fix's target shapes as tested, drop development-only code, cut comments to the
-rules above, build, and run `python -I tools/privacy_check.py --staged` before committing.
+rules above, build, and commit (the hooks run the privacy check). Whether every fix still applies to the current game
+build is checked outside this repository, where the game files are; never add game files or tests here to check it.
 
 ## License
 
