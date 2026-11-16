@@ -1,13 +1,12 @@
 #!/bin/sh
 # Builds and zips a release into dist/, laid out as the game folder: winmm.dll and wtfix-README.txt next to
-# Wartales.exe, everything else in wtfix\. VERSION names it.
+# Wartales.exe, everything else in wtfix\. VERSION names it; locally a timestamp, so an open older zip never blocks one.
 set -e
 HERE=$(cd "$(dirname "$0")" && pwd)
 SDK=${DLSS_SDK:-$HERE/sdk}
-VERSION=${VERSION:-$(git -C "$HERE" describe --tags --always --dirty 2>/dev/null || echo local)}
+VERSION=${VERSION:-$(date +%Y%m%d-%H%M%S)}
 sh "$HERE/build.sh"
-STAGE=$HERE/dist/stage
-rm -rf "$STAGE"
+STAGE=$HERE/dist/.stage_$VERSION
 mkdir -p "$STAGE/wtfix/dll" "$STAGE/wtfix/licenses"
 cp "$HERE/build/winmm.dll" "$STAGE/"
 cp "$HERE/build/wtfix.hdll" "$HERE/build/wtdlss.dll" "$SDK/lib/Windows_x86_64/rel/nvngx_dlss.dll" "$STAGE/wtfix/dll/"
@@ -30,7 +29,6 @@ DirectX 11 only: started with Steam's "Wartales (OpenGL)" option, the game close
 NVIDIA DLSS needs an NVIDIA RTX GPU; elsewhere the game's own anti-aliasing runs. Licenses: wtfix\licenses.
 EOF
 ZIP=$HERE/dist/wtfix_$VERSION.zip
-rm -f "$ZIP"
 (cd "$STAGE" && python -I -m zipfile -c "$ZIP" winmm.dll wtfix-README.txt wtfix)
 rm -rf "$STAGE"
 echo "packaged: $ZIP"

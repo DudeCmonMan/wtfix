@@ -55,7 +55,8 @@ then gets the loaded module; `wtfix.hdll` finds `wtfix/` as the parent of its ow
 ## Build
 
 - Local, from Git Bash: MinGW-w64 GCC (WinLibs or MSYS2 MINGW64, msvcrt), Visual Studio 2022 C++ tools and Python.
-  `sh build.sh` builds into `build/`; `sh package.sh` writes `dist/wtfix_<version>.zip` in the install layout.
+  `sh build.sh` builds into `build/`; `sh package.sh` writes `dist/wtfix_<version>.zip` in the install layout: CI
+  names it by commit; a local build by timestamp (`VERSION` overrides), so nothing ever blocks a local build.
 - The NVIDIA DLSS SDK is never committed: `tools/get_dlss_sdk.py` fetches the files the build needs from NVIDIA/DLSS
   at a pinned commit into `sdk/` (or `DLSS_SDK`), each checked by SHA-256; `build.sh` runs it. A new SDK version means
   a new commit and new hashes there.
