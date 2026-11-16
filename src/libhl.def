@@ -1,0 +1,7 @@
+LIBRARY libhl.dll
+EXPORTS
+    hl_add_root
+    hl_alloc_bytes
+    hl_blocking
+    hl_get_obj_rt
+    hl_to_string

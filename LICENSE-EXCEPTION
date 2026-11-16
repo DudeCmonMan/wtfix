@@ -1,0 +1,6 @@
+Additional permission under GNU GPL version 3 section 7
+
+If you modify this Program, or any covered work, by linking or combining it with the NVIDIA DLSS SDK (NVIDIA NGX),
+including its static library and its runtime library nvngx_dlss.dll (or a modified version of those libraries),
+containing parts covered by the terms of the NVIDIA RTX SDKs License, the licensors of this Program grant you
+additional permission to convey the resulting work.

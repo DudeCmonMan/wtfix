@@ -1,0 +1,15 @@
+/build/
+/dist/
+/sdk/
+*.o
+*.a
+*.obj
+*.lib
+*.exp
+*.pdb
+*.dll
+*.hdll
+*.exe
+*.zip
+*.log
+__pycache__/
