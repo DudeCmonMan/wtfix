@@ -20,6 +20,15 @@ typedef struct {
 extern const WtFix *const wt_fixes[];
 extern const int wt_nfixes;
 
+// Steps a build may add around patching; this repository adds none.
+typedef struct {
+    const WtFix *const *fixes;
+    int nfixes;
+    void (*boot)(void);
+    void (*patched)(const unsigned char *code, size_t size);
+} WtExtend;
+extern WtExtend wt_extend;
+
 void wt_log(const char *format, ...);
 extern void (*wt_log_sink)(const char *line);
 extern int (*wt_native_ready)(const char *feature); // feature: e.g. "gc"

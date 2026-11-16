@@ -70,8 +70,10 @@ then gets the loaded module; `wtfix.hdll` finds `wtfix/` as the parent of its ow
 
 ## Porting a change from development
 
-Copy the changed sources, keep the fix's target shapes as tested, drop development-only code, cut comments to the
-rules above, build, and commit (the hooks run the privacy check). Whether every fix still applies to the current game
+The sources here are the development repository's shared code, the same code with shorter comments; its
+development-only code lives in modules of its own that never come here. `wt_extend` (`fix.h`) is the point those
+modules attach to and stays empty in this repository. Copy the changed sources, keep the fix's target shapes as
+tested, cut comments to the rules above, build, and commit (the hooks run the privacy check). Whether every fix still applies to the current game
 build is checked outside this repository, where the game files are; never add game files or tests here to check it.
 
 ## License

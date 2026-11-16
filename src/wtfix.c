@@ -83,12 +83,14 @@ __declspec(dllexport) int wtfix_patch_boot(const unsigned char *in, size_t size,
     if (enabled("gcload")) wt_gc_install(decimal("gc", "threshold", 0.2f), decimal("gc", "load_threshold", 0.5f));
     if (enabled("consts")) wt_read_consts(ini);
     wt_live_load(ini);
+    if (wt_extend.boot) wt_extend.boot();
     LARGE_INTEGER t0, t1, freq;
     QueryPerformanceFrequency(&freq);
     QueryPerformanceCounter(&t0);
     int applied = wt_patch(in, size, enabled, out, out_size);
     QueryPerformanceCounter(&t1);
     wt_log("patch took %.0f ms", 1000.0 * (t1.QuadPart - t0.QuadPart) / freq.QuadPart);
+    if (*out && wt_extend.patched) wt_extend.patched(*out, *out_size);
     return applied;
 }
 

@@ -17,7 +17,7 @@ CONTENT = [
     ("secret", re.compile(r"(?i)\b(?:token|secret|password|passwd|api[_-]?key)\b\s*[:=]\s*[\"']?[\w\-./+]{12,}"
                           r"|-----BEGIN [A-Z ]*PRIVATE KEY-----|\bgh[pousr]_[A-Za-z0-9]{36,}\b|\bAKIA[0-9A-Z]{16}\b")),
     ("debug or private-repo reference", re.compile(
-        r"(?i)wtremote|dump_patched|selftest|wtfix_\w*_test|smoke_?api|koaloader|\[dev\]"
+        r"(?i)wtremote|dump_patched|selftest|wtfix_\w*_test|smoke_?api|koaloader|\[dev\]|WTFIX_DEV|src/dev/"
         r"|wtfix-dev|wartales-dev|wartales-disassembly|code-projects|captures/|docs/\w+\.md|todo\.md")),
 ]
 TRAILER = re.compile(r"(?im)^\s*(?:co-authored-by|signed-off-by)\s*:|generated with|\U0001F916")

@@ -3,6 +3,8 @@
 #include <stdlib.h>
 #include <string.h>
 
+WtExtend wt_extend;
+
 static int contains(const unsigned char *data, size_t size, const char *text) {
     size_t n = strlen(text);
     for (size_t at = 0; at + n <= size;) {
@@ -30,8 +32,8 @@ int wt_patch(const unsigned char *in, size_t size, WtEnabled enabled, unsigned c
     wt_log("bytecode v%d: %d functions, %d natives, %d types", c.version, c.nfunctions, c.nnatives, c.ntypes);
     HlEdit *e = hl_edit_begin(&c);
     int applied = 0;
-    for (int i = 0; i < wt_nfixes; i++) {
-        const WtFix *fix = wt_fixes[i];
+    for (int i = 0; i < wt_nfixes + wt_extend.nfixes; i++) {
+        const WtFix *fix = i < wt_nfixes ? wt_fixes[i] : wt_extend.fixes[i - wt_nfixes];
         if (enabled && !enabled(fix->name)) {
             wt_log("%s: off in wtfix.ini", fix->name);
             continue;
