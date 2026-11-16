@@ -9,9 +9,10 @@ changed.
 
 ## Install
 
-Download the zip from the latest build, extract it into the game folder next to `Wartales.exe`, and edit `wtfix.ini`
-to switch fixes. Delete the extracted files to uninstall. DirectX only: launched with Steam's "Wartales (OpenGL)"
-option, the game closes with a message saying so.
+Download the zip from the latest build and extract it into the game folder: `winmm.dll` and `wtfix-README.txt` go next
+to `Wartales.exe`, everything else into a `wtfix` folder there. `wtfix/wtfix.ini` switches the fixes; logs go to
+`wtfix/logs`. To uninstall, delete `winmm.dll`, `wtfix-README.txt` and the `wtfix` folder. DirectX only: launched with
+Steam's "Wartales (OpenGL)" option, the game closes with a message saying so.
 
 ## License
 

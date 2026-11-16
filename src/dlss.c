@@ -134,7 +134,7 @@ static bool start_on(ID3D11Device *game_device) {
     ID3D11Device_GetImmediateContext(device, &context);
     wchar_t dir[MAX_PATH], data[MAX_PATH];
     folder_of_wtfix(dir, MAX_PATH);
-    swprintf(data, MAX_PATH, L"%ls\\wtfix", dir);
+    swprintf(data, MAX_PATH, L"%ls\\logs", wt_root());
     int r = api.init(device, data, dir, ngx_line);
     if (r) {
         char why[64];

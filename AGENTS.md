@@ -43,11 +43,19 @@ repository is what gets published.
 - `third_party/imgui/`: Dear ImGui as released.
 - `wtfix.ini`: the switches and settings shipped in the zip.
 
+## Install layout
+
+The zip extracts into the game folder: `winmm.dll` and `wtfix-README.txt` next to `Wartales.exe` (the proxy must be
+there to load), everything else in `wtfix/`: `wtfix.ini`, `dll/` (`wtfix.hdll`, `wtdlss.dll`, `nvngx_dlss.dll`),
+`licenses/`, and `logs/` made at run time (`wtfix.log`, `proxy.log`, NVIDIA's DLSS logs). Anything wtfix adds later,
+such as caches it generates, goes in `wtfix/` too. Uninstalling is deleting `winmm.dll`, `wtfix-README.txt` and
+`wtfix/`. The proxy loads `wtfix/dll/wtfix.hdll` by path before the game's VM binds lib "wtfix" by bare name, which
+then gets the loaded module; `wtfix.hdll` finds `wtfix/` as the parent of its own `dll` folder (`wt_root`).
+
 ## Build
 
 - Local, from Git Bash: MinGW-w64 GCC (WinLibs or MSYS2 MINGW64, msvcrt), Visual Studio 2022 C++ tools and Python.
-  `sh build.sh` builds into `build/`; `sh package.sh` writes `dist/wtfix_<version>.zip` with the files at its root and
-  the licenses in `wtfix/licenses`.
+  `sh build.sh` builds into `build/`; `sh package.sh` writes `dist/wtfix_<version>.zip` in the install layout.
 - The NVIDIA DLSS SDK is never committed: `tools/get_dlss_sdk.py` fetches the files the build needs from NVIDIA/DLSS
   at a pinned commit into `sdk/` (or `DLSS_SDK`), each checked by SHA-256; `build.sh` runs it. A new SDK version means
   a new commit and new hashes there.

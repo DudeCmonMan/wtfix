@@ -22,7 +22,9 @@ static void log_line(const char *format, ...) {
     wchar_t path[MAX_PATH];
     swprintf(path, MAX_PATH, L"%ls\\wtfix", folder);
     CreateDirectoryW(path, NULL);
-    swprintf(path, MAX_PATH, L"%ls\\wtfix\\proxy.log", folder);
+    swprintf(path, MAX_PATH, L"%ls\\wtfix\\logs", folder);
+    CreateDirectoryW(path, NULL);
+    swprintf(path, MAX_PATH, L"%ls\\wtfix\\logs\\proxy.log", folder);
     FILE *f = _wfopen(path, L"a");
     if (!f) return;
     va_list args;
@@ -34,7 +36,7 @@ static void log_line(const char *format, ...) {
 }
 
 static void missing_export(void) {
-    MessageBoxW(NULL, L"The game called a winmm function the system winmm.dll does not have. See wtfix\\proxy.log.",
+    MessageBoxW(NULL, L"The game called a winmm function the system winmm.dll does not have. See wtfix\\logs\\proxy.log.",
                 L"wtfix", MB_ICONERROR);
     ExitProcess(1);
 }
@@ -92,11 +94,12 @@ static void decide(int k) {
     wcscpy(boot_path, open_boot[k].path);
     open_boot[k].checked = 1;
     wchar_t path[MAX_PATH];
-    swprintf(path, MAX_PATH, L"%ls\\wtfix.hdll", folder);
+    // By path, before the VM binds lib "wtfix": its LoadLibraryA("wtfix.hdll") then gets this module.
+    swprintf(path, MAX_PATH, L"%ls\\wtfix\\dll\\wtfix.hdll", folder);
     HMODULE fix = LoadLibraryW(path);
     patch_t patch = fix ? (patch_t)(void *)GetProcAddress(fix, "wtfix_patch_boot") : NULL;
     if (!patch) {
-        log_line("no wtfix.hdll (error %lu): running the game unpatched", GetLastError());
+        log_line("no wtfix\\dll\\wtfix.hdll (error %lu): running the game unpatched", GetLastError());
         return;
     }
     unsigned char *out = NULL;

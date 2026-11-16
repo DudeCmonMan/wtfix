@@ -7,15 +7,18 @@
 #include "fix.h"
 #include "live.h"
 
-static wchar_t folder[MAX_PATH];
+// folder: wtfix.hdll's own; root: the wtfix folder (wtfix.ini, logs\), folder's parent when that is ...\wtfix\dll.
+static wchar_t folder[MAX_PATH], root[MAX_PATH];
+
+const wchar_t *wt_root(void) { return root; }
 static FILE *log_file;
 
 static void to_file(const char *line) {
     if (!log_file) {
         wchar_t path[MAX_PATH];
-        swprintf(path, MAX_PATH, L"%ls\\wtfix", folder);
+        swprintf(path, MAX_PATH, L"%ls\\logs", root);
         CreateDirectoryW(path, NULL);
-        swprintf(path, MAX_PATH, L"%ls\\wtfix\\wtfix.log", folder);
+        swprintf(path, MAX_PATH, L"%ls\\logs\\wtfix.log", root);
         log_file = _wfopen(path, L"w");
         if (!log_file) return;
     }
@@ -27,7 +30,7 @@ static void to_file(const char *line) {
 
 static int setting(const char *section, const char *key, int fallback) {
     wchar_t ini[MAX_PATH], s[64], k[64];
-    swprintf(ini, MAX_PATH, L"%ls\\wtfix.ini", folder);
+    swprintf(ini, MAX_PATH, L"%ls\\wtfix.ini", root);
     swprintf(s, 64, L"%hs", section);
     swprintf(k, 64, L"%hs", key);
     return (int)GetPrivateProfileIntW(s, k, fallback, ini);
@@ -37,7 +40,7 @@ static int enabled(const char *fix) { return setting("fixes", fix, 1); }
 
 static float decimal(const char *section, const char *key, float fallback) {
     wchar_t ini[MAX_PATH], s[64], k[64], v[64];
-    swprintf(ini, MAX_PATH, L"%ls\\wtfix.ini", folder);
+    swprintf(ini, MAX_PATH, L"%ls\\wtfix.ini", root);
     swprintf(s, 64, L"%hs", section);
     swprintf(k, 64, L"%hs", key);
     GetPrivateProfileStringW(s, k, L"", v, 64, ini);
@@ -48,7 +51,7 @@ static float decimal(const char *section, const char *key, float fallback) {
 
 static double number(const char *section, const char *key, double fallback) {
     wchar_t ini[MAX_PATH];
-    swprintf(ini, MAX_PATH, L"%ls\\wtfix.ini", folder);
+    swprintf(ini, MAX_PATH, L"%ls\\wtfix.ini", root);
     return wt_ini_number(ini, section, key, fallback);
 }
 
@@ -72,7 +75,7 @@ __declspec(dllexport) int wtfix_patch_boot(const unsigned char *in, size_t size,
     wt_native_ready = native_ready;
     wt_number = number;
     wchar_t ini[MAX_PATH], die[64];
-    swprintf(ini, MAX_PATH, L"%ls\\wtfix.ini", folder);
+    swprintf(ini, MAX_PATH, L"%ls\\wtfix.ini", root);
     GetPrivateProfileStringW(L"cpu", L"die", L"auto", die, 64, ini);
     char die_text[3 * 64] = "";
     WideCharToMultiByte(CP_UTF8, 0, die, -1, die_text, sizeof die_text, NULL, NULL);
@@ -95,6 +98,9 @@ BOOL WINAPI DllMain(HINSTANCE instance, DWORD reason, LPVOID reserved) {
         DisableThreadLibraryCalls(instance);
         GetModuleFileNameW(instance, folder, MAX_PATH);
         *wcsrchr(folder, L'\\') = 0;
+        wcscpy(root, folder);
+        wchar_t *last = wcsrchr(root, L'\\');
+        if (last && !_wcsicmp(last + 1, L"dll")) *last = 0;
     }
     return TRUE;
 }
