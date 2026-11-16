@@ -33,7 +33,7 @@ static HWND window;
 static ID3D11Device *device;
 static ID3D11DeviceContext *context;
 static bool ready, failed, shown;
-static float ui_scale = 1;
+static float res_scale = 1, ui_scale = 1;
 static const char *status = "";
 
 static LRESULT CALLBACK wndproc(HWND h, UINT msg, WPARAM w, LPARAM l) {
@@ -73,6 +73,29 @@ static void use_device(ID3D11Device *dev) {
     context->Release(); // the device keeps it alive; ImGui holds its own reference
 }
 
+static float wanted_scale(void) { return res_scale * 0.8f * (float)wt_live[LIVE_PANEL_SCALE].value; }
+
+// ImGui's fonts are bitmaps of one size: a new scale rebuilds them rather than stretching them.
+static void build_style(float scale) {
+    ImGuiIO &io = ImGui::GetIO();
+    io.Fonts->Clear();
+    wchar_t fonts[MAX_PATH], path[MAX_PATH];
+    char utf8[MAX_PATH * 3];
+    GetWindowsDirectoryW(fonts, MAX_PATH);
+    swprintf(path, MAX_PATH, L"%ls\\Fonts\\segoeui.ttf", fonts);
+    WideCharToMultiByte(CP_UTF8, 0, path, -1, utf8, sizeof utf8, NULL, NULL);
+    if (GetFileAttributesW(path) == INVALID_FILE_ATTRIBUTES || !io.Fonts->AddFontFromFileTTF(utf8, 17.0f * scale)) {
+        ImFontConfig font;
+        font.SizePixels = 13.0f * (scale < 1.5f ? 1 : 2);
+        io.Fonts->AddFontDefault(&font);
+    }
+    ImGuiStyle &style = ImGui::GetStyle();
+    style = ImGuiStyle();
+    ImGui::StyleColorsDark();
+    style.ScaleAllSizes(scale);
+    ui_scale = scale;
+}
+
 static bool start(const DxDriver *d) {
     DXGI_SWAP_CHAIN_DESC desc;
     if (FAILED(d->swapchain->GetDesc(&desc)) || !desc.OutputWindow) return false;
@@ -80,24 +103,13 @@ static bool start(const DxDriver *d) {
     window = desc.OutputWindow;
     RECT r;
     GetClientRect(window, &r);
-    ui_scale = r.bottom > 1080 ? r.bottom / 1080.0f : 1.0f;
+    res_scale = r.bottom > 1080 ? r.bottom / 1080.0f : 1.0f;
     IMGUI_CHECKVERSION();
     ImGui::CreateContext();
     ImGuiIO &io = ImGui::GetIO();
     io.IniFilename = NULL;
     io.LogFilename = NULL;
-    wchar_t fonts[MAX_PATH], path[MAX_PATH];
-    char utf8[MAX_PATH * 3];
-    GetWindowsDirectoryW(fonts, MAX_PATH);
-    swprintf(path, MAX_PATH, L"%ls\\Fonts\\segoeui.ttf", fonts);
-    WideCharToMultiByte(CP_UTF8, 0, path, -1, utf8, sizeof utf8, NULL, NULL);
-    if (GetFileAttributesW(path) == INVALID_FILE_ATTRIBUTES || !io.Fonts->AddFontFromFileTTF(utf8, 17.0f * ui_scale)) {
-        ImFontConfig font;
-        font.SizePixels = 13.0f * (ui_scale < 1.5f ? 1 : 2);
-        io.Fonts->AddFontDefault(&font);
-    }
-    ImGui::StyleColorsDark();
-    ImGui::GetStyle().ScaleAllSizes(ui_scale);
+    build_style(wanted_scale());
     ImGui_ImplWin32_Init(window);
     ImGui_ImplDX11_Init(device, context);
     real_wndproc = (WNDPROC)SetWindowLongPtrW(window, GWLP_WNDPROC, (LONG_PTR)wndproc);
@@ -131,47 +143,66 @@ static void row(int id) {
     ImGui::PopID();
 }
 
+// Applied on release: a panel resized under the mouse would move the slider away from it.
+static void scale_row(void) {
+    static float v;
+    static bool held;
+    WtLive *s = &wt_live[LIVE_PANEL_SCALE];
+    if (!held) v = (float)s->value;
+    ImGui::SetNextItemWidth(280 * ui_scale);
+    ImGui::SliderFloat(s->label, &v, (float)s->low, (float)s->high, s->format, ImGuiSliderFlags_AlwaysClamp);
+    held = ImGui::IsItemActive();
+    if (ImGui::IsItemDeactivatedAfterEdit()) wt_live_change(LIVE_PANEL_SCALE, v);
+}
+
+static bool section(const char *name) { return ImGui::CollapsingHeader(name, ImGuiTreeNodeFlags_DefaultOpen); }
+
 static void panel(void) {
     ImGui::SetNextWindowPos(ImVec2(60 * ui_scale, 40 * ui_scale), ImGuiCond_FirstUseEver);
     ImGui::Begin("wtfix (Insert)", &shown, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoCollapse);
-    ImGui::SeparatorText("Battle camera");
-    row(LIVE_ZOOM_MAX);
-    row(LIVE_ZOOM_MIN);
-    row(LIVE_BLUR);
-    row(LIVE_FOG);
-    row(LIVE_SOUND);
-    ImGui::SeparatorText("Unit HUDs");
-    row(LIVE_HUD_FULL);
-    row(LIVE_HUD_BARS);
-    ImGui::SeparatorText("Performance");
-    row(LIVE_CULL_OFFSCREEN);
-    row(LIVE_CULL_SMALL);
-    row(LIVE_SHADOW_CACHE);
-    row(LIVE_SHADOW_MARGIN);
-    char shadow_stats[160];
-    wt_shadow_stats(shadow_stats, sizeof shadow_stats);
-    ImGui::TextDisabled("Shadow cache: %s", shadow_stats);
-    row(LIVE_FX_LOOKAT);
-    char fxlook_stats[96];
-    wt_fxlook_stats(fxlook_stats, sizeof fxlook_stats);
-    ImGui::TextDisabled("FX look-at: %s", fxlook_stats);
-    row(LIVE_SUBSKIN_ONCE);
-    row(LIVE_SKIN_C);
-    char skin_stats[128];
-    wt_skin_stats(skin_stats, sizeof skin_stats);
-    ImGui::TextDisabled("Skin joints: %s", skin_stats);
-    ImGui::SeparatorText("Upscaling");
-    row(LIVE_DLSS);
-    int mode = (int)(wt_live[LIVE_DLSS_MODE].value + 0.5);
-    ImGui::SetNextItemWidth(280 * ui_scale);
-    if (ImGui::Combo("DLSS mode", &mode, wt_dlss_modes, 5)) wt_live_change(LIVE_DLSS_MODE, mode);
-    row(LIVE_DLSS_SHARPEN);
-    row(LIVE_DLSS_BLOOM);
-    row(LIVE_DLSS_MIP_BIAS);
-    char dlss_stats[160];
-    wt_dlss_stats(dlss_stats, sizeof dlss_stats);
-    ImGui::TextDisabled("DLSS: %s", dlss_stats);
+    if (section("Battle camera")) {
+        row(LIVE_ZOOM_MAX);
+        row(LIVE_ZOOM_MIN);
+        row(LIVE_BLUR);
+        row(LIVE_FOG);
+        row(LIVE_SOUND);
+    }
+    if (section("Unit HUDs")) {
+        row(LIVE_HUD_FULL);
+        row(LIVE_HUD_BARS);
+    }
+    if (section("Performance")) {
+        row(LIVE_CULL_OFFSCREEN);
+        row(LIVE_CULL_SMALL);
+        row(LIVE_SHADOW_CACHE);
+        row(LIVE_SHADOW_MARGIN);
+        char shadow_stats[160];
+        wt_shadow_stats(shadow_stats, sizeof shadow_stats);
+        ImGui::TextDisabled("Shadow cache: %s", shadow_stats);
+        row(LIVE_FX_LOOKAT);
+        char fxlook_stats[96];
+        wt_fxlook_stats(fxlook_stats, sizeof fxlook_stats);
+        ImGui::TextDisabled("FX look-at: %s", fxlook_stats);
+        row(LIVE_SUBSKIN_ONCE);
+        row(LIVE_SKIN_C);
+        char skin_stats[128];
+        wt_skin_stats(skin_stats, sizeof skin_stats);
+        ImGui::TextDisabled("Skin joints: %s", skin_stats);
+    }
+    if (section("Upscaling")) {
+        row(LIVE_DLSS);
+        int mode = (int)(wt_live[LIVE_DLSS_MODE].value + 0.5);
+        ImGui::SetNextItemWidth(280 * ui_scale);
+        if (ImGui::Combo("DLSS mode", &mode, wt_dlss_modes, 5)) wt_live_change(LIVE_DLSS_MODE, mode);
+        row(LIVE_DLSS_SHARPEN);
+        row(LIVE_DLSS_BLOOM);
+        row(LIVE_DLSS_MIP_BIAS);
+        char dlss_stats[160];
+        wt_dlss_stats(dlss_stats, sizeof dlss_stats);
+        ImGui::TextDisabled("DLSS: %s", dlss_stats);
+    }
     ImGui::Separator();
+    scale_row();
     if (ImGui::Button("Save to ini")) status = wt_live_save(wt_live_ini()) ? "could not write wtfix.ini" : "saved";
     ImGui::SameLine();
     ImGui::TextDisabled("%s", wt_live_dirty() ? "unsaved changes" : status);
@@ -187,6 +218,11 @@ static void draw(IDXGISwapChain *chain) {
     HRESULT hr = device->CreateRenderTargetView(back, NULL, &target);
     back->Release();
     if (FAILED(hr)) return;
+    float scale = wanted_scale();
+    if (scale != ui_scale) {
+        ImGui_ImplDX11_InvalidateDeviceObjects();
+        build_style(scale);
+    }
     ImGui_ImplDX11_NewFrame();
     ImGui_ImplWin32_NewFrame();
     ImGui::NewFrame();
