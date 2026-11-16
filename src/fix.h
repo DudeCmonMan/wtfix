@@ -41,6 +41,8 @@ extern double (*wt_number)(const char *section, const char *key, double fallback
 typedef int (*WtEnabled)(const char *fix);
 // *out is malloc'd, or NULL when nothing changed or the result failed to read back.
 int wt_patch(const unsigned char *in, size_t size, WtEnabled enabled, unsigned char **out, size_t *out_size);
+// 1 for the game's OpenGL build, which wtfix refuses to start (DirectX 11 only).
+int wt_boot_opengl(const unsigned char *boot, size_t size);
 
 HlOp wt_op(int op, int n, ...);
 int wt_expect(HlCode *c, const HlFun *f, int at, int op, const char *callee); // the op, and its callee if given

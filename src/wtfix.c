@@ -60,6 +60,15 @@ uint64_t wt_cpu_pin(const char *die);
 
 __declspec(dllexport) int wtfix_patch_boot(const unsigned char *in, size_t size, unsigned char **out, size_t *out_size) {
     wt_log_sink = to_file;
+    if (wt_boot_opengl(in, size)) {
+        wt_log("Wartales was started with OpenGL; wtfix supports DirectX 11 only: the game was closed");
+        MessageBoxW(NULL,
+                    L"Wartales was started in OpenGL mode, which wtfix does not support.\n\n"
+                    L"Start it again with \"Wartales (DirectX)\" in Steam's launch options, or uninstall wtfix "
+                    L"(delete winmm.dll from the game folder) to play with OpenGL.",
+                    L"wtfix", MB_OK | MB_ICONERROR | MB_SETFOREGROUND);
+        ExitProcess(1);
+    }
     wt_native_ready = native_ready;
     wt_number = number;
     wchar_t ini[MAX_PATH], die[64];

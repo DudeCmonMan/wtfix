@@ -1,6 +1,23 @@
 #include "fix.h"
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
+
+static int contains(const unsigned char *data, size_t size, const char *text) {
+    size_t n = strlen(text);
+    for (size_t at = 0; at + n <= size;) {
+        const unsigned char *p = memchr(data + at, text[0], size - n + 1 - at);
+        if (!p) return 0;
+        if (!memcmp(p, text, n)) return 1;
+        at = (size_t)(p - data) + 1;
+    }
+    return 0;
+}
+
+// Steam's "Wartales (OpenGL)" boots sdlboot.dat, which has Heaps' GL driver and no DirectX one.
+int wt_boot_opengl(const unsigned char *boot, size_t size) {
+    return contains(boot, size, "h3d.impl.GlDriver") && !contains(boot, size, "h3d.impl.DirectXDriver");
+}
 
 int wt_patch(const unsigned char *in, size_t size, WtEnabled enabled, unsigned char **out, size_t *out_size) {
     *out = NULL;

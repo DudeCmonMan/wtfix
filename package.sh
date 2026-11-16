@@ -24,6 +24,7 @@ wtfix.ini switches each fix (name=0 turns it off) and holds their settings. In g
 Each start writes wtfix\wtfix.log: one line per fix, "on" or "OFF" with the reason. A game update that changes what a
 fix patches turns that fix off; the game then runs as it would without it.
 
+DirectX 11 only: started with Steam's "Wartales (OpenGL)" option, the game closes with a message saying so.
 NVIDIA DLSS needs an NVIDIA RTX GPU; elsewhere the game's own anti-aliasing runs. Licenses: wtfix\licenses.
 EOF
 ZIP=$HERE/dist/wtfix_$VERSION.zip
