@@ -201,7 +201,12 @@ static int effects(HlCode *c, HlEdit *e, int function, const Natives *n) {
         const HlOp *call = &f->ops[calls[k]];
         int on = call->a[call->op == OCall2 ? 3 : 4];
         HlOp swap = wt_op(OCall1, 3, on, natives[k], on);
-        hl_fun_insert(f, calls[k], &swap, 1);
+        // The option's "on" branch jumps to the toggle: the native must be on both paths.
+        if (hl_fun_insert_entry(f, calls[k], &swap, 1)) {
+            wt_log("  %s: a loop jumps back to the %s toggle", hl_type_name(c, f->regs[0]), classes[k]);
+            hl_fun_free(f);
+            return -1;
+        }
     }
     int r = hl_edit_replace(e, function, f);
     hl_fun_free(f);

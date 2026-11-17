@@ -117,8 +117,11 @@ HlFun *hl_fun_copy(const HlFun *f);
 HlFun *hl_fun_new(int type, int nregs, const int *regs, const HlOp *ops, int nops, int file, int line);
 void hl_fun_free(HlFun *f);
 int hl_is_jump(int op);
-// Targets >= at move with their op, so a target `at` in the inserted ops names the original op, not the block.
+// Targets >= at move with their op, so a target `at` in the inserted ops names the original op, not the block; a jump
+// to `at` skips the block too.
 void hl_fun_insert(HlFun *f, int at, const HlOp *ops, int n);
+// Jumps to `at` land on the block instead; -1 when a loop jumps back to `at` and the block has no OLabel first.
+int hl_fun_insert_entry(HlFun *f, int at, const HlOp *ops, int n);
 // New op i is old op order[i]; every jump target must be kept.
 int hl_fun_reorder(HlFun *f, const int *order, int n);
 // For Switch, case k, or the default when k < 0.

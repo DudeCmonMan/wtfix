@@ -850,6 +850,26 @@ void hl_fun_insert(HlFun *f, int at, const HlOp *ops, int n) {
 }
 
 typedef struct {
+    int from, to, hits;
+} Retarget;
+
+static void retarget(int *t, void *ctx) {
+    Retarget *r = (Retarget *)ctx;
+    if (*t == r->from) *t = r->to, r->hits++;
+}
+
+int hl_fun_insert_entry(HlFun *f, int at, const HlOp *ops, int n) {
+    Retarget back = {at, at, 0};
+    for (int i = at; i < f->nops; i++) each_target(&f->ops[i], retarget, &back);
+    if (back.hits && (n < 1 || ops[0].op != OLabel)) return -1;
+    hl_fun_insert(f, at, ops, n);
+    Retarget into = {at + n, at, 0};
+    for (int i = 0; i < f->nops; i++)
+        if (i < at || i >= at + n) each_target(&f->ops[i], retarget, &into);
+    return 0;
+}
+
+typedef struct {
     const int *map;
     int bad;
 } Remap;

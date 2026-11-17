@@ -46,7 +46,8 @@ static int apply(HlCode *c, HlEdit *e, const int *fn) {
         wt_op(OBool, 2, 8, 0),
         wt_op(OJAlways, 1, 183),
     };
-    hl_fun_insert(save, 99, early, 6);
+    // Uncompressed saves jump to 99 too.
+    if (hl_fun_insert_entry(save, 99, early, 6)) return fail(list, read, bytes, save);
     int head_save = hl_edit_add(e, save);
 
     // Ops 32/47 read and parse each file; 151/154 do it again to report a failure other than "Not a save". Both use
