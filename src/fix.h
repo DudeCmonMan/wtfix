@@ -24,6 +24,8 @@ extern const int wt_nfixes;
 typedef struct {
     const WtFix *const *fixes;
     int nfixes;
+    const WtFix *const *late;
+    int nlate;
     void (*boot)(void);
     void (*patched)(const unsigned char *code, size_t size);
 } WtExtend;

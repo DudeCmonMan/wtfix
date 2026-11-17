@@ -21,7 +21,13 @@ int wt_boot_opengl(const unsigned char *boot, size_t size) {
     return contains(boot, size, "h3d.impl.GlDriver") && !contains(boot, size, "h3d.impl.DirectXDriver");
 }
 
-int wt_patch(const unsigned char *in, size_t size, WtEnabled enabled, unsigned char **out, size_t *out_size) {
+static const WtFix *fix_at(int late, int i) {
+    if (late) return wt_extend.late[i];
+    return i < wt_nfixes ? wt_fixes[i] : wt_extend.fixes[i - wt_nfixes];
+}
+
+static int pass(const unsigned char *in, size_t size, int late, WtEnabled enabled, unsigned char **out,
+                size_t *out_size) {
     *out = NULL;
     *out_size = 0;
     HlCode c;
@@ -32,8 +38,8 @@ int wt_patch(const unsigned char *in, size_t size, WtEnabled enabled, unsigned c
     wt_log("bytecode v%d: %d functions, %d natives, %d types", c.version, c.nfunctions, c.nnatives, c.ntypes);
     HlEdit *e = hl_edit_begin(&c);
     int applied = 0;
-    for (int i = 0; i < wt_nfixes + wt_extend.nfixes; i++) {
-        const WtFix *fix = i < wt_nfixes ? wt_fixes[i] : wt_extend.fixes[i - wt_nfixes];
+    for (int i = 0; i < (late ? wt_extend.nlate : wt_nfixes + wt_extend.nfixes); i++) {
+        const WtFix *fix = fix_at(late, i);
         if (enabled && !enabled(fix->name)) {
             wt_log("%s: off in wtfix.ini", fix->name);
             continue;
@@ -84,4 +90,19 @@ int wt_patch(const unsigned char *in, size_t size, WtEnabled enabled, unsigned c
     hl_free(&c);
     *out = result;
     return applied;
+}
+
+// Late fixes patch the others' result in a second pass; if that pass fails, the first result stands.
+int wt_patch(const unsigned char *in, size_t size, WtEnabled enabled, unsigned char **out, size_t *out_size) {
+    int applied = pass(in, size, 0, enabled, out, out_size);
+    if (applied < 0 || !wt_extend.nlate) return applied;
+    unsigned char *first = *out;
+    size_t first_size = *out_size;
+    int late = pass(first ? first : in, first ? first_size : size, 1, enabled, out, out_size);
+    if (late <= 0) {
+        *out = first, *out_size = first_size;
+        return applied;
+    }
+    free(first);
+    return applied + late;
 }
