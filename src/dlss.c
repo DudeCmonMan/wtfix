@@ -251,8 +251,13 @@ static int mode(void) {
     return m < 0 ? 0 : m > 4 ? 4 : m;
 }
 
+// The game's AA option (-1 until first set): DLSS replaces its TAA, so it runs only where the TAA would.
+static int aa = -1;
+
+static bool wanted(void) { return wt_live[LIVE_DLSS].value >= 0.5 && aa == 1; }
+
 static bool dlss_on(void) {
-    return wt_live[LIVE_DLSS].value >= 0.5 && !failed && load();
+    return wanted() && !failed && load();
 }
 
 static void dlss_set(int i, const void *v) {
@@ -321,7 +326,7 @@ static void prepare(IDXGISwapChain *swapchain) {
 
 // From the overlay's first frame or when DLSS is switched on, so NGX's slow start doesn't stall the first TAA scene.
 void wt_dlss_startup(ID3D11Device *game_device, IDXGISwapChain *swapchain) {
-    if (ready || failed || wt_live[LIVE_DLSS].value < 0.5 || !load()) return;
+    if (ready || failed || !wanted() || !load()) return;
     LARGE_INTEGER t0;
     QueryPerformanceCounter(&t0);
     ID3D11DeviceContext *c;
@@ -432,10 +437,19 @@ static bool dlss_taa(void) {
     return done;
 }
 
-// setAntialiasing's three effects: the game's choice (AA on) in, the one under DLSS out.
-static bool dlss_taa_effect(bool game) { return game || dlss_on(); }
-static bool dlss_sharpen_effect(bool game) { return dlss_on() ? wt_live[LIVE_DLSS_SHARPEN].value >= 0.5 : game; }
-static bool dlss_bloom_effect(bool game) { return dlss_on() ? game || wt_live[LIVE_DLSS_BLOOM].value >= 0.5 : game; }
+// setAntialiasing's three effects each bring the AA option; only Sharpen changes under DLSS.
+static bool dlss_bloom_effect(bool game) {
+    aa = game;
+    return game;
+}
+static bool dlss_taa_effect(bool game) {
+    aa = game;
+    return game;
+}
+static bool dlss_sharpen_effect(bool game) {
+    aa = game;
+    return dlss_on() ? wt_live[LIVE_DLSS_SHARPEN].value >= 0.5 : game;
+}
 static bool dlss_changed(void) { return wt_live_take(LIVE_TAKE_DLSS); }
 
 // Each scene render (packed: back buffer w << 16 | h): true for DLSS's scene, which then uses render_size and bias_key.
@@ -444,11 +458,12 @@ static bool dlss_frame(const void *renderer, int packed) {
     QueryPerformanceCounter(&owner_seen);
     engine_w = packed >> 16 & 0x7fff, engine_h = packed & 0xffff;
     // Three frames without DLSS fall back to full size and DLAA; a mode failing so thrice stays DLAA until changed.
+    // Frames with DLSS off don't count.
     if (mode() != fallback_mode) fallbacks = 0, fallback_mode = mode();
     if (misses == 3 && mode() > 0 && dlss_on() && ready && ++fallbacks == 3)
         wt_log("dlss: %s's scaled frames never reached DLSS; DLAA until the mode changes", mode_names[mode()]);
     int m = !dlss_on() || !ready ? -1 : misses >= 3 || fallbacks >= 3 ? 0 : mode();
-    misses++;
+    misses = m < 0 ? 0 : misses + 1;
     if (m > 0 && !scaled_size(m)) m = 0;
     if (m <= 0) render_w = engine_w, render_h = engine_h;
     frame_mode = m;
@@ -528,6 +543,8 @@ HL_PRIM(dlss_upscale)
 int wt_dlss_stats(char *out, int size) {
     if (wt_live[LIVE_DLSS].value < 0.5 && !failed) return snprintf(out, size, "off");
     if (failed) return snprintf(out, size, "%s", status);
+    if (aa == 0) return snprintf(out, size, "idle: the game's anti-aliasing is off (DLSS replaces its TAA)");
+    if (aa < 0) return snprintf(out, size, "waiting for the game's anti-aliasing setting");
     if (ready && !evaluated) return snprintf(out, size, "started, no scene with the game's TAA yet");
     int code = bias_key >> 17 & 15, n = 0;
     if (ready)

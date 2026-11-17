@@ -195,7 +195,6 @@ static void panel(void) {
         ImGui::SetNextItemWidth(280 * ui_scale);
         if (ImGui::Combo("DLSS mode", &mode, wt_dlss_modes, 5)) wt_live_change(LIVE_DLSS_MODE, mode);
         row(LIVE_DLSS_SHARPEN);
-        row(LIVE_DLSS_BLOOM);
         row(LIVE_DLSS_MIP_BIAS);
         char dlss_stats[160];
         wt_dlss_stats(dlss_stats, sizeof dlss_stats);

@@ -26,7 +26,8 @@ panel. Each start writes wtfix\logs\wtfix.log: one line per fix, "on" or "OFF" w
 changes what a fix patches turns that fix off; the game then runs as it would without it.
 
 DirectX 11 only: started with Steam's "Wartales (OpenGL)" option, the game closes with a message saying so.
-NVIDIA DLSS needs an NVIDIA RTX GPU; elsewhere the game's own anti-aliasing runs. Licenses: wtfix\licenses.
+NVIDIA DLSS needs an NVIDIA RTX GPU and the game's anti-aliasing on (it replaces the game's TAA); elsewhere the
+game's own anti-aliasing runs. Licenses: wtfix\licenses.
 EOF
 ZIP=$HERE/dist/wtfix_$VERSION.zip
 (cd "$STAGE" && python -I -m zipfile -c "$ZIP" winmm.dll wtfix-README.txt wtfix)
