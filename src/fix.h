@@ -19,6 +19,9 @@ typedef struct {
 
 extern const WtFix *const wt_fixes[];
 extern const int wt_nfixes;
+// Fixes that each patch the result so far in a pass of their own, as they change functions other fixes change.
+extern const WtFix *const wt_late_fixes[];
+extern const int wt_nlate_fixes;
 
 // Steps a build may add around patching; this repository adds none.
 typedef struct {

@@ -15,6 +15,7 @@ extern "C" int wt_shadow_stats(char *out, int size);
 extern "C" int wt_fxlook_stats(char *out, int size);
 extern "C" int wt_skin_stats(char *out, int size);
 extern "C" int wt_dlss_stats(char *out, int size);
+extern "C" int wt_defer_stats(char *out, int size);
 extern "C" void wt_dlss_startup(ID3D11Device *device, IDXGISwapChain *swapchain);
 extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND, UINT, WPARAM, LPARAM);
 
@@ -188,6 +189,10 @@ static void panel(void) {
         char skin_stats[128];
         wt_skin_stats(skin_stats, sizeof skin_stats);
         ImGui::TextDisabled("Skin joints: %s", skin_stats);
+        row(LIVE_DRAW_THREADS);
+        char defer_stats[160];
+        wt_defer_stats(defer_stats, sizeof defer_stats);
+        ImGui::TextDisabled("Draw threads: %s", defer_stats);
     }
     if (section("Upscaling")) {
         row(LIVE_DLSS);

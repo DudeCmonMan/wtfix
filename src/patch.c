@@ -21,9 +21,9 @@ int wt_boot_opengl(const unsigned char *boot, size_t size) {
     return contains(boot, size, "h3d.impl.GlDriver") && !contains(boot, size, "h3d.impl.DirectXDriver");
 }
 
-// late < 0: the fixes and the extension's; else that one late fix.
+// late < 0: the fixes and the extension's; else that one late fix, the shipped ones first.
 static const WtFix *fix_at(int late, int i) {
-    if (late >= 0) return wt_extend.late[late];
+    if (late >= 0) return late < wt_nlate_fixes ? wt_late_fixes[late] : wt_extend.late[late - wt_nlate_fixes];
     return i < wt_nfixes ? wt_fixes[i] : wt_extend.fixes[i - wt_nfixes];
 }
 
@@ -98,7 +98,7 @@ static int pass(const unsigned char *in, size_t size, int late, WtEnabled enable
 // leaves the result as it was.
 int wt_patch(const unsigned char *in, size_t size, WtEnabled enabled, unsigned char **out, size_t *out_size) {
     int applied = pass(in, size, -1, enabled, out, out_size);
-    for (int i = 0; applied >= 0 && i < wt_extend.nlate; i++) {
+    for (int i = 0; applied >= 0 && i < wt_nlate_fixes + wt_extend.nlate; i++) {
         unsigned char *before = *out;
         size_t before_size = *out_size;
         int late = pass(before ? before : in, before ? before_size : size, i, enabled, out, out_size);

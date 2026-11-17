@@ -26,6 +26,7 @@ WtLive wt_live[LIVE_COUNT] = {
     {"Keep still FX look-at planes", "perf", "fx_lookat_cache", "%.0f", 0, 0, 0, 0, 1, true, false},
     {"Armour joints once a frame", "perf", "subskin_once", "%.0f", 1, 0, 1, 0, 1, true, false},
     {"Skin joints computed in C", "perf", "skin_joints_c", "%.0f", 1, 0, 1, 0, 1, true, false},
+    {"Draw threads", "perf", "draw_threads", "%.0f", 3, 0, 3, 0, 7, false, false},
     {"NVIDIA DLSS", "dlss", "enable", "%.0f", 1, 0, 1, 0, 1, true, false},
     {"DLSS mode", "dlss", "mode", "%.0f", 1, 0, 1, 0, 4, false, false},
     {"Game sharpen with DLSS", "dlss", "sharpen", "%.0f", 0, 0, 0, 0, 1, true, false},
@@ -45,6 +46,7 @@ static LONG takers_of(int id) {
     if (id == LIVE_FX_LOOKAT) return 0;
     if (id == LIVE_SUBSKIN_ONCE) return 0;
     if (id == LIVE_SKIN_C) return 0;
+    if (id == LIVE_DRAW_THREADS) return 0;
     if (id == LIVE_DLSS_MODE || id == LIVE_DLSS_MIP_BIAS) return 0;
     if (id == LIVE_PANEL_SCALE) return 0;
     if (id == LIVE_DLSS || id == LIVE_DLSS_SHARPEN) return 1L << LIVE_TAKE_DLSS;

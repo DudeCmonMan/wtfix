@@ -4,7 +4,8 @@ Performance and quality-of-life fixes for Wartales (Windows, DirectX 11), applie
 changed.
 
 - NVIDIA DLSS (DLAA or upscaling) in place of the game's anti-aliasing, with motion vectors.
-- Faster frames: cached battle shadows, prop culling, skin joints in C, fewer GC collections while loading.
+- Faster frames: the main render pass drawn with worker threads, cached battle shadows, prop culling, skin joints in
+  C, fewer GC collections while loading.
 - Battle camera, HUD and save-list fixes, and an in-game settings panel (Insert).
 
 ## Install
