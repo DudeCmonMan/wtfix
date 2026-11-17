@@ -324,9 +324,9 @@ static void prepare(IDXGISwapChain *swapchain) {
     wt_log("dlss: %s made ahead: %dx%d -> %dx%d", mode_names[m], w, h, engine_w, engine_h);
 }
 
-// From the overlay's first frame or when DLSS is switched on, so NGX's slow start doesn't stall the first TAA scene.
+// From the overlay's first frame, where the AA option isn't known yet, so NGX's slow start doesn't stall a scene.
 void wt_dlss_startup(ID3D11Device *game_device, IDXGISwapChain *swapchain) {
-    if (ready || failed || !wanted() || !load()) return;
+    if (ready || failed || wt_live[LIVE_DLSS].value < 0.5 || aa == 0 || !load()) return;
     LARGE_INTEGER t0;
     QueryPerformanceCounter(&t0);
     ID3D11DeviceContext *c;

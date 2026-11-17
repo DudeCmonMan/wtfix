@@ -45,7 +45,7 @@ static int pass(const unsigned char *in, size_t size, int late, WtEnabled enable
             wt_log("%s: off in wtfix.ini", fix->name);
             continue;
         }
-        int fn[16], ok = 1;
+        int fn[fix->ntargets], ok = 1;
         for (int t = 0; t < fix->ntargets; t++) {
             fn[t] = hl_find_function(&c, fix->targets[t].name);
             if (fn[t] < 0) {
@@ -80,7 +80,8 @@ static int pass(const unsigned char *in, size_t size, int late, WtEnabled enable
     hl_edit_free(e);
     HlCode check;
     if (hl_read(&check, result, *out_size)) {
-        wt_log("patched bytecode does not read back (%s): running the game unpatched", check.error);
+        wt_log("patched bytecode does not read back (%s): %s", check.error,
+               late < 0 ? "running the game unpatched" : "the late fix left out");
         free(result);
         hl_free(&c);
         *out_size = 0;
