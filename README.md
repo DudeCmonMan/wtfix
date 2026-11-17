@@ -10,10 +10,26 @@ changed.
 
 ## Install
 
-Download the zip from the latest build and extract it into the game folder: `winmm.dll` and `wtfix-README.txt` go next
-to `Wartales.exe`, everything else into a `wtfix` folder there. `wtfix/wtfix.ini` switches the fixes; logs go to
-`wtfix/logs`. To uninstall, delete `winmm.dll`, `wtfix-README.txt` and the `wtfix` folder. DirectX only: launched with
-Steam's "Wartales (OpenGL)" option, the game closes with a message saying so.
+- Download the zip from the latest build.
+- Drag and drop its contents into your Wartales folder (in Steam: right-click Wartales > Manage > Browse local files).
+- `winmm.dll` and `wtfix-README.txt` go next to `Wartales.exe`; everything else goes in a `wtfix` folder there.
+
+Reinstalling or updating: delete the `wtfix` folder first (keep a copy of `wtfix/wtfix.ini` if you changed settings).
+
+## Settings
+
+- In game, Insert opens the settings panel.
+- `wtfix/wtfix.ini` switches each fix on or off and holds its settings.
+- Logs go to `wtfix/logs`.
+
+## Uninstall
+
+- Delete `winmm.dll`, `wtfix-README.txt` and the `wtfix` folder.
+
+## Requirements
+
+- DirectX 11 only: launched with Steam's "Wartales (OpenGL)" option, the game closes with a message saying so.
+- NVIDIA DLSS needs an NVIDIA RTX GPU and the game's anti-aliasing on.
 
 ## License
 

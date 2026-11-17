@@ -18,16 +18,28 @@ cp "$SDK/LICENSE.txt" "$STAGE/wtfix/licenses/nvidia-dlss.txt"
 cat > "$STAGE/wtfix-README.txt" <<EOF
 wtfix $VERSION for Wartales (Windows, DirectX 11).
 
-Install: extract into the game folder: winmm.dll and this file go next to Wartales.exe, the rest into its wtfix folder.
-Uninstall: delete winmm.dll, wtfix-README.txt and the wtfix folder.
+Install
+- Drag and drop the zip's contents into your Wartales folder
+  (in Steam: right-click Wartales > Manage > Browse local files).
+- winmm.dll and this file go next to Wartales.exe; everything else goes in its wtfix folder.
 
-wtfix\wtfix.ini switches each fix (name=0 turns it off) and holds their settings. In game, Insert opens the settings
-panel. Each start writes wtfix\logs\wtfix.log: one line per fix, "on" or "OFF" with the reason. A game update that
-changes what a fix patches turns that fix off; the game then runs as it would without it.
+Reinstalling or updating: delete the wtfix folder first (keep a copy of wtfix\wtfix.ini if you changed settings).
 
-DirectX 11 only: started with Steam's "Wartales (OpenGL)" option, the game closes with a message saying so.
-NVIDIA DLSS needs an NVIDIA RTX GPU and the game's anti-aliasing on (it replaces the game's TAA); elsewhere the
-game's own anti-aliasing runs. Licenses: wtfix\licenses.
+Settings
+- In game, Insert opens the settings panel.
+- wtfix\wtfix.ini switches each fix (name=0 turns it off) and holds their settings.
+- Each start writes wtfix\logs\wtfix.log: one line per fix, "on" or "OFF" with the reason.
+- A game update that changes what a fix patches turns that fix off; the game then runs as it would without it.
+
+Uninstall
+- Delete winmm.dll, wtfix-README.txt and the wtfix folder.
+
+Requirements
+- DirectX 11 only: started with Steam's "Wartales (OpenGL)" option, the game closes with a message saying so.
+- NVIDIA DLSS needs an NVIDIA RTX GPU and the game's anti-aliasing on (it replaces the game's TAA);
+  elsewhere the game's own anti-aliasing runs.
+
+Licenses: wtfix\licenses.
 EOF
 ZIP=$HERE/dist/wtfix_$VERSION.zip
 (cd "$STAGE" && python -I -m zipfile -c "$ZIP" winmm.dll wtfix-README.txt wtfix)
