@@ -27,7 +27,8 @@ repository is what gets published.
    diagnostic logging, and NVIDIA's release DLSS DLL only (the developer one has an overlay and hotkeys). The log keeps
    one line per fix, setup lines and failures; the settings panel shows each feature's status.
 6. **CI.** GitHub Actions (`.github/workflows/build.yml`) runs the privacy check, then builds and packages on
-   windows-latest and uploads the zip.
+   windows-latest and uploads the zip; a `v*` tag also drafts a GitHub release with it (`wtfix_<tag>.zip`), which
+   the owner publishes after writing its notes.
 7. **Git.** Commit as `DudeCmonMan <24796508+DudeCmonMan@users.noreply.github.com>`, no trailers of any kind
    (Co-Authored-By, Signed-off-by, "Generated with"). Local commits only: never push or add a remote unless the owner
    asks.

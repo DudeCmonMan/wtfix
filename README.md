@@ -10,7 +10,7 @@ changed.
 
 ## Install
 
-- Download the zip from the latest build.
+- Download the zip from the latest release.
 - Drag and drop its contents into your Wartales folder (in Steam: right-click Wartales > Manage > Browse local files).
 - `winmm.dll` and `wtfix-README.txt` go next to `Wartales.exe`; everything else goes in a `wtfix` folder there.
 
