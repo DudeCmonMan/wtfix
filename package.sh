@@ -4,17 +4,20 @@
 set -e
 HERE=$(cd "$(dirname "$0")" && pwd)
 SDK=${DLSS_SDK:-$HERE/sdk}
+FSR_SDK=${FSR_SDK:-$HERE/fsr-sdk}
 VERSION=${VERSION:-$(date +%Y%m%d-%H%M%S)}
 sh "$HERE/build.sh"
 STAGE=$HERE/dist/.stage_$VERSION
 mkdir -p "$STAGE/wtfix/dll" "$STAGE/wtfix/licenses"
 cp "$HERE/build/winmm.dll" "$STAGE/"
-cp "$HERE/build/wtfix.hdll" "$HERE/build/wtdlss.dll" "$SDK/lib/Windows_x86_64/rel/nvngx_dlss.dll" "$STAGE/wtfix/dll/"
+cp "$HERE/build/wtfix.hdll" "$HERE/build/wtdlss.dll" "$SDK/lib/Windows_x86_64/rel/nvngx_dlss.dll" "$HERE/build/wtfsr.dll" \
+  "$STAGE/wtfix/dll/"
 cp "$HERE/wtfix.ini" "$STAGE/wtfix/"
 cp "$HERE/LICENSE" "$STAGE/wtfix/licenses/wtfix-GPL-3.0.txt"
 cp "$HERE/LICENSE-EXCEPTION" "$STAGE/wtfix/licenses/wtfix-exception.txt"
 cp "$HERE/third_party/imgui/LICENSE.txt" "$STAGE/wtfix/licenses/dear-imgui.txt"
 cp "$SDK/LICENSE.txt" "$STAGE/wtfix/licenses/nvidia-dlss.txt"
+cp "$FSR_SDK/LICENSE.txt" "$STAGE/wtfix/licenses/amd-fidelityfx.txt"
 cat > "$STAGE/wtfix-README.txt" <<EOF
 wtfix $VERSION for Wartales (Windows, DirectX 11).
 
@@ -36,8 +39,11 @@ Uninstall
 
 Requirements
 - DirectX 11 only: started with Steam's "Wartales (OpenGL)" option, the game closes with a message saying so.
-- NVIDIA DLSS needs an NVIDIA RTX GPU and the game's anti-aliasing on (it replaces the game's TAA);
-  elsewhere the game's own anti-aliasing runs.
+- Upscaling replaces the game's TAA, so it needs the game's anti-aliasing on. NVIDIA RTX GPUs get NVIDIA DLSS
+  or AMD FSR 3.1 (DLSS by default); other GPUs get FSR.
+
+AMD FSR 3.1 on DirectX 11 is AMD's FidelityFX SDK with metarutaiga's DirectX 11 backend and MapleHinata's fixes,
+the port OptiScaler uses.
 
 Licenses: wtfix\licenses.
 EOF

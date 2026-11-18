@@ -1,4 +1,5 @@
 // wtdlss.dll: NGX's D3D11 DLSS behind a C interface, built with MSVC as NGX needs its static runtime; NGX's values.
+// wtfsr.dll has the same interface over AMD FSR 3.1.
 #pragma once
 
 #ifdef __cplusplus
@@ -28,6 +29,8 @@ typedef struct WtDlssFrame {
     int render_width, render_height;
     int reset;
     float frame_ms;
+    float camera_near, camera_far, fov_y; // fov_y in radians; FSR takes them, DLSS doesn't
+    float sharpness;                      // FSR's own sharpening (RCAS): 0 off to 1 strongest; DLSS has none
 } WtDlssFrame;
 
 typedef void (*WtDlssLog)(const char *line);

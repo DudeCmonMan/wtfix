@@ -27,10 +27,12 @@ WtLive wt_live[LIVE_COUNT] = {
     {"Armour joints once a frame", "perf", "subskin_once", "%.0f", 1, 0, 1, 0, 1, true, false},
     {"Skin joints computed in C", "perf", "skin_joints_c", "%.0f", 1, 0, 1, 0, 1, true, false},
     {"Draw threads", "perf", "draw_threads", "%.0f", 3, 0, 3, 0, 7, false, false},
-    {"NVIDIA DLSS", "dlss", "enable", "%.0f", 1, 0, 1, 0, 1, true, false},
-    {"DLSS mode", "dlss", "mode", "%.0f", 1, 0, 1, 0, 4, false, false},
-    {"Game sharpen with DLSS", "dlss", "sharpen", "%.0f", 0, 0, 0, 0, 1, true, false},
-    {"Sharper textures with DLSS", "dlss", "mip_bias", "%.0f", 1, 0, 1, 0, 1, true, false},
+    {"Upscaling", "upscaler", "enable", "%.0f", 1, 0, 1, 0, 1, true, false},
+    {"Upscaler", "upscaler", "upscaler", "%.0f", 0, 0, 0, 0, 1, false, false},
+    {"Mode", "upscaler", "mode", "%.0f", 1, 0, 1, 0, 4, false, false},
+    {"FSR sharpness", "upscaler", "fsr_sharpness", "%.2f", 0, 0, 0, 0, 1, false, false},
+    {"Game sharpen filter", "upscaler", "dlss_sharpen", "%.0f", 0, 0, 0, 0, 1, true, false},
+    {"Sharper textures", "upscaler", "mip_bias", "%.0f", 1, 0, 1, 0, 1, true, false},
     {"Panel scale", "ui", "panel_scale", "%.1fx", 1, 1, 1, 0.5, 2, false, false},
 };
 
@@ -47,9 +49,10 @@ static LONG takers_of(int id) {
     if (id == LIVE_SUBSKIN_ONCE) return 0;
     if (id == LIVE_SKIN_C) return 0;
     if (id == LIVE_DRAW_THREADS) return 0;
-    if (id == LIVE_DLSS_MODE || id == LIVE_DLSS_MIP_BIAS) return 0;
+    if (id == LIVE_DLSS_MODE || id == LIVE_DLSS_MIP_BIAS || id == LIVE_FSR_SHARPNESS) return 0;
     if (id == LIVE_PANEL_SCALE) return 0;
-    if (id == LIVE_DLSS || id == LIVE_DLSS_SHARPEN) return 1L << LIVE_TAKE_DLSS;
+    // The game's Sharpen follows the upscaler.
+    if (id == LIVE_DLSS || id == LIVE_DLSS_SHARPEN || id == LIVE_UPSCALER) return 1L << LIVE_TAKE_DLSS;
     return (1L << LIVE_TAKE_CONSTS) | (1L << LIVE_TAKE_HUDS);
 }
 

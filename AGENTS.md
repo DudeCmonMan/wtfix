@@ -2,7 +2,8 @@
 
 wtfix fixes Wartales (Shiro Games; HashLink/Heaps, DirectX 11) in memory at launch: `winmm.dll` (a proxy the game
 loads first) hands the game's bytecode to `wtfix.hdll`, which patches it before the VM compiles it and holds the natives
-the patched code calls; `wtdlss.dll` wraps NVIDIA DLSS. No game file is changed.
+the patched code calls; `wtdlss.dll` wraps NVIDIA DLSS and `wtfsr.dll` AMD FSR 3.1 behind the same interface. No game
+file is changed.
 
 Fixes are developed and tested against the game in the owner's private development repository, then ported here. This
 repository is what gets published.
@@ -41,13 +42,16 @@ repository is what gets published.
   natives the patched code binds (`hlp_<name>`, library "wtfix"), the settings panel (`overlay.cpp`, Dear ImGui) and
   its live values (`live.c`).
 - `dlss/`: `wtdlss.dll`, built with MSVC because NVIDIA's static library needs its runtime.
+- `fsr/`: `wtfsr.dll`, built with MSVC from MapleHinata's fork of AMD's FidelityFX SDK (metarutaiga's D3D11 backend):
+  `shaders.py` compiles the upscaler's passes with AMD's shader compiler, `patch_backend.py` makes the backend bind its
+  constants through D3D11's Map/Unmap path, `shaderblobs.cpp` hands the backend the upscaler's shaders only.
 - `third_party/imgui/`: Dear ImGui as released.
 - `wtfix.ini`: the switches and settings shipped in the zip.
 
 ## Install layout
 
 The zip extracts into the game folder: `winmm.dll` and `wtfix-README.txt` next to `Wartales.exe` (the proxy must be
-there to load), everything else in `wtfix/`: `wtfix.ini`, `dll/` (`wtfix.hdll`, `wtdlss.dll`, `nvngx_dlss.dll`),
+there to load), everything else in `wtfix/`: `wtfix.ini`, `dll/` (`wtfix.hdll`, `wtdlss.dll`, `nvngx_dlss.dll`, `wtfsr.dll`),
 `licenses/`, and `logs/` made at run time (`wtfix.log`, `proxy.log`, NVIDIA's DLSS logs). Anything wtfix adds later,
 such as caches it generates, goes in `wtfix/` too. Uninstalling is deleting `winmm.dll`, `wtfix-README.txt` and
 `wtfix/`. The proxy loads `wtfix/dll/wtfix.hdll` by path before the game's VM binds lib "wtfix" by bare name, which
@@ -61,7 +65,9 @@ then gets the loaded module; `wtfix.hdll` finds `wtfix/` as the parent of its ow
 - The NVIDIA DLSS SDK is never committed: `tools/get_dlss_sdk.py` fetches the files the build needs from NVIDIA/DLSS
   at a pinned commit into `sdk/` (or `DLSS_SDK`), each checked by SHA-256; `build.sh` runs it. A new SDK version means
   a new commit and new hashes there.
-- CI uses the same scripts. `build/`, `dist/` and `sdk/` are ignored.
+- AMD's SDK likewise: `tools/get_fsr_sdk.py` fetches MapleHinata's fork at a pinned commit into `fsr-sdk/` (or
+  `FSR_SDK`), shader compiler included (build time only).
+- CI uses the same scripts. `build/`, `dist/`, `sdk/` and `fsr-sdk/` are ignored.
 - Warnings are errors. `wtfix.hdll` must not need MinGW runtime DLLs (`build.sh` checks).
 
 ## Not shipped
@@ -80,4 +86,5 @@ build is checked outside this repository, where the game files are; never add ga
 ## License
 
 GPL-3.0 (`LICENSE`) with an additional permission for NVIDIA's DLSS libraries (`LICENSE-EXCEPTION`). Dear ImGui is
-MIT (`third_party/imgui/LICENSE.txt`). The release zip carries all of them and NVIDIA's DLSS license.
+MIT (`third_party/imgui/LICENSE.txt`), as is AMD's FidelityFX SDK, compiled into `wtfsr.dll`. The release zip carries
+all of them, NVIDIA's DLSS license and AMD's.

@@ -17,6 +17,7 @@ extern "C" int wt_skin_stats(char *out, int size);
 extern "C" int wt_dlss_stats(char *out, int size);
 extern "C" int wt_defer_stats(char *out, int size);
 extern "C" void wt_dlss_startup(ID3D11Device *device, IDXGISwapChain *swapchain);
+extern "C" int wt_dlss_offered(void);
 extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND, UINT, WPARAM, LPARAM);
 
 struct DxDriver { // directx.hdll's dx_driver, its first fields
@@ -196,14 +197,23 @@ static void panel(void) {
     }
     if (section("Upscaling")) {
         row(LIVE_DLSS);
+        int upscaler = 1;
+        if (wt_dlss_offered()) {
+            upscaler = (int)(wt_live[LIVE_UPSCALER].value + 0.5);
+            ImGui::SetNextItemWidth(280 * ui_scale);
+            if (ImGui::Combo("Upscaler", &upscaler, wt_upscalers, 2)) wt_live_change(LIVE_UPSCALER, upscaler);
+        } else {
+            ImGui::TextDisabled("Upscaler: AMD FSR 3.1 (DLSS does not run on this GPU; wtfix.log says why)");
+        }
         int mode = (int)(wt_live[LIVE_DLSS_MODE].value + 0.5);
         ImGui::SetNextItemWidth(280 * ui_scale);
-        if (ImGui::Combo("DLSS mode", &mode, wt_dlss_modes, 5)) wt_live_change(LIVE_DLSS_MODE, mode);
-        row(LIVE_DLSS_SHARPEN);
+        if (ImGui::Combo("Mode", &mode, upscaler ? wt_fsr_modes : wt_dlss_modes, 5))
+            wt_live_change(LIVE_DLSS_MODE, mode);
+        row(upscaler ? LIVE_FSR_SHARPNESS : LIVE_DLSS_SHARPEN);
         row(LIVE_DLSS_MIP_BIAS);
         char dlss_stats[160];
         wt_dlss_stats(dlss_stats, sizeof dlss_stats);
-        ImGui::TextDisabled("DLSS: %s", dlss_stats);
+        ImGui::TextDisabled("Upscaling: %s", dlss_stats);
     }
     ImGui::Separator();
     scale_row();

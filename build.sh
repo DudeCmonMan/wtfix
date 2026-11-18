@@ -1,9 +1,11 @@
 #!/bin/sh
-# Builds winmm.dll, wtfix.hdll and wtdlss.dll into build/. DLSS_SDK: the NVIDIA DLSS SDK (default: sdk/, fetched).
+# Builds winmm.dll, wtfix.hdll, wtdlss.dll and wtfsr.dll into build/. DLSS_SDK: the NVIDIA DLSS SDK (default: sdk/,
+# fetched); FSR_SDK: AMD's FidelityFX SDK fork (default: fsr-sdk/, fetched).
 set -e
 HERE=$(cd "$(dirname "$0")" && pwd)
 OUT=$HERE/build
 SDK=${DLSS_SDK:-$HERE/sdk}
+FSR_SDK=${FSR_SDK:-$HERE/fsr-sdk}
 CC=${CC:-x86_64-w64-mingw32-gcc}
 CXX=${CXX:-x86_64-w64-mingw32-g++}
 DLLTOOL=${DLLTOOL:-dlltool}
@@ -41,3 +43,5 @@ fi
 
 python -I "$HERE/tools/get_dlss_sdk.py" "$SDK"
 cmd //c "$(cygpath -w "$HERE/dlss/build.cmd")" "$(cygpath -w "$OUT")" "$(cygpath -w "$SDK")"
+python -I "$HERE/tools/get_fsr_sdk.py" "$FSR_SDK"
+cmd //c "$(cygpath -w "$HERE/fsr/build.cmd")" "$(cygpath -w "$OUT")" "$(cygpath -w "$FSR_SDK")"

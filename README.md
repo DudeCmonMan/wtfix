@@ -3,7 +3,7 @@
 Performance and quality-of-life fixes for Wartales (Windows, DirectX 11), applied in memory at launch: no game file is
 changed.
 
-- NVIDIA DLSS (DLAA or upscaling) in place of the game's anti-aliasing, with motion vectors.
+- NVIDIA DLSS or AMD FSR 3.1 (anti-aliasing or upscaling) in place of the game's TAA, with motion vectors.
 - Faster frames: the main render pass drawn with worker threads, cached battle shadows, prop culling, skin joints in
   C, fewer GC collections while loading.
 - Battle camera, HUD and save-list fixes, and an in-game settings panel (Insert).
@@ -29,9 +29,17 @@ Reinstalling or updating: delete the `wtfix` folder first (keep a copy of `wtfix
 ## Requirements
 
 - DirectX 11 only: launched with Steam's "Wartales (OpenGL)" option, the game closes with a message saying so.
-- NVIDIA DLSS needs an NVIDIA RTX GPU and the game's anti-aliasing on.
+- Upscaling needs the game's anti-aliasing on. NVIDIA RTX GPUs get NVIDIA DLSS or AMD FSR 3.1 (DLSS by default);
+  other GPUs get FSR.
+
+## Credits
+
+AMD FSR 3.1 on DirectX 11 is AMD's FidelityFX SDK with metarutaiga's DirectX 11 backend
+([FidelityFX-SDK-DX11](https://github.com/metarutaiga/FidelityFX-SDK-DX11)) and MapleHinata's fixes
+([FidelityFX-SDK](https://github.com/MapleHinata/FidelityFX-SDK)), the port
+[OptiScaler](https://github.com/optiscaler/OptiScaler) uses.
 
 ## License
 
-GPL-3.0 (`LICENSE`), with an additional permission for NVIDIA's DLSS libraries (`LICENSE-EXCEPTION`). Dear ImGui is
-MIT. Not affiliated with Shiro Games or NVIDIA.
+GPL-3.0 (`LICENSE`), with an additional permission for NVIDIA's DLSS libraries (`LICENSE-EXCEPTION`). Dear ImGui and
+AMD's FidelityFX SDK are MIT. Not affiliated with Shiro Games, NVIDIA or AMD.

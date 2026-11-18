@@ -1,4 +1,4 @@
-// DLSS in place of the game's TAA: patches to the TAA, scene size, sampler LOD bias and AA toggle (natives in dlss.c).
+// DLSS or FSR in place of the game's TAA: TAA, scene size, sampler LOD bias and AA toggle patches (natives in dlss.c).
 #include "../dlss.h"
 #include "../fix.h"
 #include "../asm.h"
@@ -273,7 +273,8 @@ static int pass_texture(HlOp *ops, int n, int rtex, int slot_int, const int *r, 
 
 typedef struct {
     int f_t, f_res, f_textures, f_depth, f_velocity, f_hdr, f_ldr, f_depthbuf, f_format, f_filter;
-    int f_inv, f_prev, f_cam, f_cv, f_jx, f_jy, f_engine, f_width, f_height, f_cache, f_tonemap, f_shader, f_hdrtex;
+    int f_inv, f_prev, f_cam, f_cv, f_jx, f_jy, f_fov, f_near, f_far, f_engine, f_width, f_height, f_cache, f_tonemap,
+        f_shader, f_hdrtex;
     int tvirt, tres, ttextures, tmat, tcam, tengine, tcache, tfx, tscreen, ttonemap, tfmt, tfilter, tref, tflags;
     int tstring, tstep;
 } EndLayout;
@@ -301,14 +302,19 @@ static int end_layout(HlCode *c, const HlFun *f, const Natives *n, EndLayout *l)
     l->f_height = l->f_engine >= 0 ? field_of(c, l->tengine, "height", &tx) : -1;
     l->f_jx = l->f_cam >= 0 ? field_of(c, l->tcam, "jitterOffsetX", &tf64) : -1;
     l->f_jy = l->f_cam >= 0 ? field_of(c, l->tcam, "jitterOffsetY", &tx) : -1;
+    int tfov, tnear, tfar;
+    l->f_fov = l->f_cam >= 0 ? field_of(c, l->tcam, "fovY", &tfov) : -1;
+    l->f_near = l->f_cam >= 0 ? field_of(c, l->tcam, "zNear", &tnear) : -1;
+    l->f_far = l->f_cam >= 0 ? field_of(c, l->tcam, "zFar", &tfar) : -1;
     const HlType *at = &c->types[n->t_alloc];
     l->tref = at->args[4], l->tflags = at->args[6], l->tstring = at->args[1];
     int fields[] = {l->f_t, l->f_res, l->f_depthbuf, l->f_format, l->f_filter, l->f_textures, l->f_depth, l->f_velocity,
                     l->f_hdr, l->f_ldr, l->f_tonemap, l->f_shader, l->f_hdrtex, l->f_inv, l->f_prev, l->f_cam, l->f_cv,
-                    l->f_engine, l->f_cache, l->f_width, l->f_height, l->f_jx, l->f_jy};
+                    l->f_engine, l->f_cache, l->f_width, l->f_height, l->f_jx, l->f_jy, l->f_fov, l->f_near, l->f_far};
     for (unsigned i = 0; i < sizeof fields / sizeof fields[0]; i++)
         if (fields[i] < 0) return -1;
     return c->types[l->tres].kind == HABSTRACT && l->tmat == tmat2 && tf64 == hl_find_type(c, HF64, NULL) &&
+           tfov == tf64 && tnear == tf64 && tfar == tf64 &&
                    tbool == hl_find_type(c, HBOOL, NULL) && ti32 == hl_find_type(c, HI32, NULL) && at->nargs == 7 &&
                    at->args[0] == l->tcache && at->args[2] == ti32 && at->args[3] == ti32 && at->args[5] == l->tfmt &&
                    at->ret == ttex
@@ -437,10 +443,10 @@ static int end(HlCode *c, HlEdit *e, int function, const Natives *n) {
     }
     a[k++] = wt_op(OField, 3, rcam, 3, l.f_cam);
     a[k++] = wt_op(OJNull, 2, rcam, 192);
-    const int jit[2] = {l.f_jx, l.f_jy}, jit_nums[2] = {num[DLSS_JITTER_X], num[DLSS_JITTER_Y]};
-    for (int m = 0; m < 2; m++) {
-        a[k++] = wt_op(OField, 3, rnum, rcam, jit[m]);
-        a[k++] = wt_op(OInt, 2, r[3], jit_nums[m]);
+    const int cam_fields[DLSS_NUMBERS] = {l.f_jx, l.f_jy, l.f_fov, l.f_near, l.f_far};
+    for (int m = 0; m < DLSS_NUMBERS; m++) {
+        a[k++] = wt_op(OField, 3, rnum, rcam, cam_fields[m]);
+        a[k++] = wt_op(OInt, 2, r[3], num[m]);
         a[k++] = wt_op(OCall2, 4, r[4], n->f_num, r[3], rnum);
     }
     a[k++] = wt_op(OCall0, 2, ron, n->f_taa);
@@ -650,5 +656,7 @@ static int apply(HlCode *c, HlEdit *e, const int *fn) {
     return 0;
 }
 
-const WtFix fix_dlss = {"dlss", "NVIDIA DLSS (DLAA or upscaling) in place of the game's TAA, with motion vectors (live)",
+const WtFix fix_dlss = {"dlss",
+                        "NVIDIA DLSS or AMD FSR 3.1 (anti-aliasing or upscaling) in place of the game's TAA, "
+                        "with motion vectors (live)",
                         targets, T_COUNT, apply};

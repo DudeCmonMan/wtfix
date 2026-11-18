@@ -1,8 +1,9 @@
-// DLSS natives for the patched TemporalFiltering; on any failure the game's TAA runs as before.
-// wtdlss.dll is loaded on first use from wtfix.hdll's folder, NVIDIA's nvngx_dlss.dll next to it.
+// Upscaler natives for the patched TemporalFiltering; on any failure the game's TAA runs as before.
+// wtdlss.dll (NVIDIA's nvngx_dlss.dll next to it) or wtfsr.dll, loaded on first use from wtfix.hdll's folder.
 #define WIN32_LEAN_AND_MEAN
 #define COBJMACROS
 #include <windows.h>
+#include <initguid.h> // IID_IDXGIDevice: no library wtfix links defines it
 #include <d3d11.h>
 #include <d3dcompiler.h>
 #include <math.h>
@@ -29,8 +30,14 @@ static struct {
     WtDlssOptimal optimal;
     WtDlssCreate create;
     WtDlssEvaluate evaluate;
-    WtDlssRelease release;
+    WtDlssShutdown shutdown;
 } api;
+
+static int upscaler = -1;
+static bool no_dlss;
+static const char *const dll_names[2] = {"wtdlss", "wtfsr"};
+static int chosen(void) { return no_dlss || wt_live[LIVE_UPSCALER].value >= 0.5; }
+static bool bound;
 
 static const void *slot[DLSS_SLOTS];
 static double number[DLSS_NUMBERS];
@@ -60,7 +67,7 @@ static struct {
 } upscaled;
 
 static const int qualities[5] = {WTDLSS_DLAA, WTDLSS_QUALITY, WTDLSS_BALANCED, WTDLSS_PERF, WTDLSS_ULTRA_PERF};
-static const char *const mode_names[5] = {"DLAA", "Quality", "Balanced", "Performance", "Ultra performance"};
+static const char *mode_name(int m) { return (upscaler == 1 ? wt_fsr_modes : wt_dlss_modes)[m]; }
 
 // The engine's velocity where written, else camera motion from depth (unwritten pixels hold the clear: 0, or 1 on the
 // world map). Units: UV, current to previous, +y down. Heaps matrices take row vectors.
@@ -102,46 +109,78 @@ static void ngx_line(const char *line) { wt_log("dlss: %s", line); }
 static void stop(const char *why) {
     failed = true;
     snprintf(status, sizeof status, "off: %s", why);
-    wt_log("dlss: OFF for this session: %s; the game's TAA runs", why);
+    wt_log("dlss: %s OFF: %s; the game's TAA runs", wt_upscalers[upscaler], why);
+}
+
+static void *proc(HMODULE lib, const char *what) {
+    char name[32];
+    snprintf(name, sizeof name, "%s_%s", dll_names[upscaler], what);
+    return (void *)GetProcAddress(lib, name);
 }
 
 static bool load(void) {
     if (loaded) return true;
+    upscaler = chosen();
     wchar_t dir[MAX_PATH], path[MAX_PATH];
     folder_of_wtfix(dir, MAX_PATH);
-    swprintf(path, MAX_PATH, L"%ls\\wtdlss.dll", dir);
+    swprintf(path, MAX_PATH, L"%ls\\%hs.dll", dir, dll_names[upscaler]);
     HMODULE lib = LoadLibraryW(path);
+    char why[64];
     if (!lib) {
-        stop("wtdlss.dll is missing");
+        snprintf(why, sizeof why, "%s.dll is missing", dll_names[upscaler]);
+        stop(why);
         return false;
     }
-    api.init = (WtDlssInit)(void *)GetProcAddress(lib, "wtdlss_init");
-    api.optimal = (WtDlssOptimal)(void *)GetProcAddress(lib, "wtdlss_optimal");
-    api.create = (WtDlssCreate)(void *)GetProcAddress(lib, "wtdlss_create");
-    api.evaluate = (WtDlssEvaluate)(void *)GetProcAddress(lib, "wtdlss_evaluate");
-    api.release = (WtDlssRelease)(void *)GetProcAddress(lib, "wtdlss_release");
-    if (!api.init || !api.optimal || !api.create || !api.evaluate || !api.release) {
-        stop("wtdlss.dll is not this build's");
+    api.init = (WtDlssInit)proc(lib, "init"), api.optimal = (WtDlssOptimal)proc(lib, "optimal");
+    api.create = (WtDlssCreate)proc(lib, "create"), api.evaluate = (WtDlssEvaluate)proc(lib, "evaluate");
+    api.shutdown = (WtDlssShutdown)proc(lib, "shutdown");
+    if (!api.init || !api.optimal || !api.create || !api.evaluate || !api.shutdown) {
+        snprintf(why, sizeof why, "%s.dll is not this build's", dll_names[upscaler]);
+        stop(why);
         return false;
     }
     loaded = true;
     return true;
 }
 
+// The other starts at the next scene with the game's TAA.
+static void switch_upscaler(void) {
+    if (loaded) api.shutdown();
+    loaded = ready = failed = evaluated = false;
+    feature_quality = -1, sized_mode = -1;
+    upscaler = chosen();
+    snprintf(status, sizeof status, "off");
+    wt_log("dlss: %s chosen", wt_upscalers[upscaler]);
+}
+
+static bool start_shared(ID3D11Device *game_device);
 static bool start_on(ID3D11Device *game_device) {
-    device = game_device;
-    ID3D11Device_AddRef(device);
-    ID3D11Device_GetImmediateContext(device, &context);
+    if (!device && !start_shared(game_device)) return false;
     wchar_t dir[MAX_PATH], data[MAX_PATH];
     folder_of_wtfix(dir, MAX_PATH);
     swprintf(data, MAX_PATH, L"%ls\\logs", wt_root());
     int r = api.init(device, data, dir, ngx_line);
+    if (r && upscaler == 0) {
+        wt_log("dlss: NVIDIA DLSS did not start on this GPU (0x%08x): AMD FSR 3.1 instead", r);
+        api.shutdown();
+        no_dlss = true, loaded = false;
+        return load() && start_on(game_device);
+    }
     if (r) {
         char why[64];
-        snprintf(why, sizeof why, "NVIDIA DLSS did not start (0x%08x)", r);
+        snprintf(why, sizeof why, "%s did not start (0x%08x)", wt_upscalers[upscaler], r);
         stop(why);
         return false;
     }
+    ready = true;
+    wt_log("dlss: %s started", wt_upscalers[upscaler]);
+    return true;
+}
+
+static bool start_shared(ID3D11Device *game_device) {
+    device = game_device;
+    ID3D11Device_AddRef(device);
+    ID3D11Device_GetImmediateContext(device, &context);
     ID3DBlob *code = NULL, *errors = NULL;
     HRESULT hr = D3DCompile(mv_source, sizeof mv_source - 1, "dlss_mv", NULL, NULL, "main", "cs_5_0",
                             D3DCOMPILE_OPTIMIZATION_LEVEL3, 0, &code, &errors);
@@ -166,8 +205,6 @@ static bool start_on(ID3D11Device *game_device) {
         stop("upscaling's depth pass did not start");
         return false;
     }
-    ready = true;
-    wt_log("dlss: NVIDIA DLSS started");
     return true;
 }
 
@@ -257,6 +294,7 @@ static int aa = -1;
 static bool wanted(void) { return wt_live[LIVE_DLSS].value >= 0.5 && aa == 1; }
 
 static bool dlss_on(void) {
+    if (upscaler >= 0 && chosen() != upscaler) switch_upscaler();
     return wanted() && !failed && load();
 }
 
@@ -286,15 +324,16 @@ static bool scaled_size(int m) {
         int r = api.optimal(qualities[m], engine_w, engine_h, &w, &h, &x, &x, &x, &x);
         sized_mode = m, sized_w = engine_w, sized_h = engine_h;
         sized_rw = !r && w > 0 && h > 0 && w <= engine_w && h <= engine_h ? w : 0, sized_rh = h;
-        if (sized_rw) wt_log("dlss: %s renders the scene at %dx%d for %dx%d", mode_names[m], w, h, engine_w, engine_h);
-        else wt_log("dlss: %s has no scene size for %dx%d (0x%08x); DLAA instead", mode_names[m], engine_w, engine_h, r);
+        if (sized_rw) wt_log("dlss: %s renders the scene at %dx%d for %dx%d", mode_name(m), w, h, engine_w, engine_h);
+        else wt_log("dlss: %s has no scene size for %dx%d (0x%08x); %s instead", mode_name(m), engine_w, engine_h, r,
+                    mode_name(0));
     }
     render_w = sized_rw ? sized_rw : engine_w, render_h = sized_rw ? sized_rh : engine_h;
     return sized_rw > 0;
 }
 
-// NVIDIA's LOD bias log2(render / output width) - 1, in quarter steps as a 4-bit code in the sampler key's free bits
-// 17-20; the patched uploadBuffers turns it back into a bias.
+// NVIDIA's and AMD's LOD bias log2(render / output width) - 1, in quarter steps as a 4-bit code in the sampler key's
+// free bits 17-20; the patched uploadBuffers turns it back into a bias.
 static int lod_key(int w, int ow) {
     if (wt_live[LIVE_DLSS_MIP_BIAS].value < 0.5) return 0;
     long code = 1 + lround(-(log2((double)w / ow) - 1.0) * 4);
@@ -311,7 +350,7 @@ static void prepare(IDXGISwapChain *swapchain) {
     int quality = m > 0 ? qualities[m] : WTDLSS_DLAA, r = api.create(context, quality, w, h, engine_w, engine_h,
                                                                      FEATURE_FLAGS, 0);
     if (r) {
-        wt_log("dlss: %s for %dx%d not made ahead (0x%08x); the first scene makes it", mode_names[m], engine_w, engine_h,
+        wt_log("dlss: %s for %dx%d not made ahead (0x%08x); the first scene makes it", mode_name(m), engine_w, engine_h,
                r);
         return;
     }
@@ -321,12 +360,27 @@ static void prepare(IDXGISwapChain *swapchain) {
         out_w = engine_w, out_h = engine_h, out_format = DXGI_FORMAT_R16G16B16A16_FLOAT;
     if (own_texture(&mv_tex, &mv_uav, w, h, DXGI_FORMAT_R16G16_FLOAT)) mv_w = w, mv_h = h;
     if (m > 0) wt_dlss_up_prepare(engine_w, engine_h);
-    wt_log("dlss: %s made ahead: %dx%d -> %dx%d", mode_names[m], w, h, engine_w, engine_h);
+    wt_log("dlss: %s made ahead: %dx%d -> %dx%d", mode_name(m), w, h, engine_w, engine_h);
 }
 
 // From the overlay's first frame, where the AA option isn't known yet, so NGX's slow start doesn't stall a scene.
 void wt_dlss_startup(ID3D11Device *game_device, IDXGISwapChain *swapchain) {
-    if (ready || failed || wt_live[LIVE_DLSS].value < 0.5 || aa == 0 || !load()) return;
+    static bool vendor_known;
+    if (!vendor_known) {
+        vendor_known = true;
+        IDXGIDevice *dxgi;
+        IDXGIAdapter *adapter;
+        DXGI_ADAPTER_DESC desc;
+        ID3D11Device_QueryInterface(game_device, &IID_IDXGIDevice, (void **)&dxgi);
+        IDXGIDevice_GetAdapter(dxgi, &adapter);
+        IDXGIAdapter_GetDesc(adapter, &desc);
+        IDXGIAdapter_Release(adapter), IDXGIDevice_Release(dxgi);
+        if (desc.VendorId != 0x10DE) {
+            no_dlss = true;
+            wt_log("dlss: the GPU is not NVIDIA's (vendor %04x): AMD FSR 3.1 is the upscaler", desc.VendorId);
+        }
+    }
+    if (!bound || ready || failed || wt_live[LIVE_DLSS].value < 0.5 || aa == 0 || !load()) return;
     LARGE_INTEGER t0;
     QueryPerformanceCounter(&t0);
     ID3D11DeviceContext *c;
@@ -365,7 +419,7 @@ static bool evaluate(void) {
         static int said;
         if (frame_mode >= 0 && said++ < 5)
             wt_log("dlss: skipped a frame: the scene is %dx%d, sized for %dx%d (%s), output %dx%d", w, h, render_w,
-                   render_h, mode_names[frame_mode], ow, oh);
+                   render_h, mode_name(frame_mode), ow, oh);
         return false;
     }
     if (upscale) ow = engine_w, oh = engine_h, of = f;
@@ -375,14 +429,16 @@ static bool evaluate(void) {
         int r = api.create(context, quality, w, h, ow, oh, FEATURE_FLAGS, 0);
         if (r) {
             char why[96];
-            snprintf(why, sizeof why, "DLSS could not be set up for %dx%d -> %dx%d (0x%08x)", w, h, ow, oh, r);
+            snprintf(why, sizeof why, "%s could not be set up for %dx%d -> %dx%d (0x%08x)", wt_upscalers[upscaler], w,
+                     h, ow, oh, r);
             stop(why);
             return false;
         }
         feature_w = w, feature_h = h, feature_out_w = ow, feature_out_h = oh, feature_quality = quality;
         feature_mode = frame_mode;
         reset = true;
-        snprintf(status, sizeof status, "on: %s, %dx%d -> %dx%d", mode_names[frame_mode], w, h, ow, oh);
+        snprintf(status, sizeof status, "on: %s %s, %dx%d -> %dx%d", wt_upscalers[upscaler], mode_name(frame_mode), w,
+                 h, ow, oh);
         wt_log("dlss: %s", status);
     }
     if ((ow != out_w || oh != out_h || of != out_format || !out_tex) && !own_texture(&out_tex, &out_uav, ow, oh, of)) {
@@ -412,10 +468,13 @@ static bool evaluate(void) {
     frame.render_width = w, frame.render_height = h;
     frame.reset = reset;
     frame.frame_ms = (float)(ms > 0 && ms < 250 ? ms : 16.7);
+    frame.camera_near = (float)number[DLSS_Z_NEAR], frame.camera_far = (float)number[DLSS_Z_FAR];
+    frame.fov_y = (float)(number[DLSS_FOV_Y] * 3.14159265358979 / 180);
+    frame.sharpness = (float)wt_live[LIVE_FSR_SHARPNESS].value;
     int r = api.evaluate(context, &frame);
     if (r) {
         wt_log("dlss: evaluate failed (0x%08x)", r);
-        if (++failures >= 3) stop("DLSS failed three frames running");
+        if (++failures >= 3) stop("failed three frames running");
         return false;
     }
     failures = 0, misses = 0, evaluated = true;
@@ -437,7 +496,7 @@ static bool dlss_taa(void) {
     return done;
 }
 
-// setAntialiasing's three effects each bring the AA option; only Sharpen changes under DLSS.
+// setAntialiasing's three effects each bring the AA option; only Sharpen changes, kept under DLSS by dlss_sharpen.
 static bool dlss_bloom_effect(bool game) {
     aa = game;
     return game;
@@ -448,8 +507,10 @@ static bool dlss_taa_effect(bool game) {
 }
 static bool dlss_sharpen_effect(bool game) {
     aa = game;
-    return dlss_on() ? wt_live[LIVE_DLSS_SHARPEN].value >= 0.5 : game;
+    return dlss_on() ? upscaler == 0 && wt_live[LIVE_DLSS_SHARPEN].value >= 0.5 : game;
 }
+
+int wt_dlss_offered(void) { return !no_dlss; }
 static bool dlss_changed(void) { return wt_live_take(LIVE_TAKE_DLSS); }
 
 // Each scene render (packed: back buffer w << 16 | h): true for DLSS's scene, which then uses render_size and bias_key.
@@ -461,7 +522,7 @@ static bool dlss_frame(const void *renderer, int packed) {
     // Frames with DLSS off don't count.
     if (mode() != fallback_mode) fallbacks = 0, fallback_mode = mode();
     if (misses == 3 && mode() > 0 && dlss_on() && ready && ++fallbacks == 3)
-        wt_log("dlss: %s's scaled frames never reached DLSS; DLAA until the mode changes", mode_names[mode()]);
+        wt_log("dlss: %s's scaled frames never reached DLSS; DLAA until the mode changes", mode_name(mode()));
     int m = !dlss_on() || !ready ? -1 : misses >= 3 || fallbacks >= 3 ? 0 : mode();
     misses = m < 0 ? 0 : misses + 1;
     if (m > 0 && !scaled_size(m)) m = 0;
@@ -529,7 +590,12 @@ HL_PRIM(dlss_learn)
 HL_PRIM(dlss_on)
 HL_PRIM(dlss_set)
 HL_PRIM(dlss_num)
-HL_PRIM(dlss_taa)
+// The VM binds it only when the dlss fix applied; the upscaler starts only then.
+__declspec(dllexport) void *hlp_dlss_taa(const char **sign) {
+    bound = true;
+    *sign = NULL;
+    return (void *)dlss_taa;
+}
 HL_PRIM(dlss_taa_effect)
 HL_PRIM(dlss_sharpen_effect)
 HL_PRIM(dlss_bloom_effect)
@@ -541,15 +607,16 @@ HL_PRIM(dlss_upscaled)
 HL_PRIM(dlss_upscale)
 
 int wt_dlss_stats(char *out, int size) {
+    if (!bound) return snprintf(out, size, "off: the dlss fix is off (wtfix.log says why)");
     if (wt_live[LIVE_DLSS].value < 0.5 && !failed) return snprintf(out, size, "off");
     if (failed) return snprintf(out, size, "%s", status);
-    if (aa == 0) return snprintf(out, size, "idle: the game's anti-aliasing is off (DLSS replaces its TAA)");
+    if (aa == 0) return snprintf(out, size, "idle: the game's anti-aliasing is off (the upscaler replaces its TAA)");
     if (aa < 0) return snprintf(out, size, "waiting for the game's anti-aliasing setting");
     if (ready && !evaluated) return snprintf(out, size, "started, no scene with the game's TAA yet");
     int code = bias_key >> 17 & 15, n = 0;
     if (ready)
-        n = snprintf(out, size, "on: %s, %dx%d -> %dx%d", mode_names[feature_mode], feature_w, feature_h, feature_out_w,
-                     feature_out_h);
+        n = snprintf(out, size, "on: %s %s, %dx%d -> %dx%d", wt_upscalers[upscaler], mode_name(feature_mode), feature_w,
+                     feature_h, feature_out_w, feature_out_h);
     if (ready && code && n < size) n += snprintf(out + n, size - n, ", texture bias %.2f", (1 - code) * 0.25);
     if (ready) return n;
     return snprintf(out, size, "waiting for a scene with the game's TAA");
