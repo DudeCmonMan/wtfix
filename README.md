@@ -6,7 +6,7 @@ changed.
 - NVIDIA DLSS or AMD FSR 3.1 (anti-aliasing or upscaling) in place of the game's TAA, with motion vectors.
 - Faster frames: the main render pass drawn with worker threads, cached battle shadows, prop culling, skin joints in
   C, fewer GC collections while loading.
-- Battle camera, HUD and save-list fixes, and an in-game settings panel (Insert).
+- Battle camera, HUD and save-list fixes, and an in-game settings panel (`Insert`).
 
 ## Install
 
@@ -18,7 +18,7 @@ Reinstalling or updating: delete the `wtfix` folder first (keep a copy of `wtfix
 
 ## Settings
 
-- In game, Insert opens the settings panel.
+- Press `Insert` in game to open the settings panel.
 - `wtfix/wtfix.ini` switches each fix on or off and holds its settings.
 - Logs go to `wtfix/logs`.
 

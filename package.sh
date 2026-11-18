@@ -29,7 +29,7 @@ Install
 Reinstalling or updating: delete the wtfix folder first (keep a copy of wtfix\wtfix.ini if you changed settings).
 
 Settings
-- In game, Insert opens the settings panel.
+- Press [Insert] in game to open the settings panel.
 - wtfix\wtfix.ini switches each fix (name=0 turns it off) and holds their settings.
 - Each start writes wtfix\logs\wtfix.log: one line per fix, "on" or "OFF" with the reason.
 - A game update that changes what a fix patches turns that fix off; the game then runs as it would without it.
