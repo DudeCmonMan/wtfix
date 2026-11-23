@@ -134,8 +134,14 @@ static void log_value(const char *prefix, void *value) {
     wt_log("shadowcache: %s%s", prefix, w ? text : "(could not be printed)");
 }
 
-// The script's length when a run is due, else -1; the caller checks the battle is built and shown.
+// The script's length when a run is due, else -1; the battle is built and shown, or NULL once it is left.
 static int shadow_due(void *battle) {
+    if (!battle) {
+        if (!setup_on) return -1;
+        setup_on = run_on = run_check = false;
+        frame_battle = due_battle = NULL;
+        return source_length;
+    }
     frame_battle = battle;
     if (wt_live_take(LIVE_TAKE_SHADOW)) rerun = true, failed = false;
     if (battle != done_battle) rerun = true, failed = false, check_pending = false;
@@ -162,6 +168,9 @@ static unsigned char *shadow_source(int length) {
     memcpy(bytes, source, (length + 1) * sizeof(wchar_t));
     return bytes;
 }
+
+// Checked first, so a shadow map draw outside a battle costs one call.
+static bool shadow_marked(void) { return setup_on; }
 
 static int shadow_on(void) { return run_on; }
 static int shadow_check(void) { return run_check; }
@@ -312,3 +321,4 @@ HL_PRIM(shadow_fit)
 HL_PRIM(shadow_plan)
 HL_PRIM(shadow_flag)
 HL_PRIM(shadow_set)
+HL_PRIM(shadow_marked)

@@ -9,6 +9,7 @@ static const WtTarget targets[] = {
     {"h3d.pass.DirShadowMap.draw", 0},             // its allocation, cull and camera update are found and checked
     {"h3d.pass.DirShadowMap.processShadowMap", 0}, // its depth clear is found and checked
     {"h3d.pass.DirShadowMap.syncShader", 0},
+    {"h3d.pass.Shadows.filterPasses", 0},          // a call is put first; nothing else in it is relied on
     {"h3d.Camera.update", 0},
     {"h3d.mat.$Texture.__constructor__", 0},
     {"h3d.mat.Texture.dispose", 0},
@@ -23,8 +24,8 @@ static const WtTarget targets[] = {
     {"haxe.ds.$StringMap.__constructor__", 0},
     {"$Type.resolveClass", 0},
 };
-enum { F_DRAW, F_PROCESS, F_SYNC, F_CAMUPDATE, F_TEXNEW, F_TEXDISPOSE, F_CHECK, F_ALLOCTARGET, F_ALLOC, F_PARSER,
-       F_PARSE, F_INTERP, F_EXECUTE, F_SET, F_MAP, F_RESOLVE, F_COUNT };
+enum { F_DRAW, F_PROCESS, F_SYNC, F_FILTER, F_CAMUPDATE, F_TEXNEW, F_TEXDISPOSE, F_CHECK, F_ALLOCTARGET, F_ALLOC,
+       F_PARSER, F_PARSE, F_INTERP, F_EXECUTE, F_SET, F_MAP, F_RESOLVE, F_COUNT };
 
 #define EXPR "virtual<e,line,origin,pmax,pmin>"
 
@@ -107,7 +108,7 @@ static int findex_of(Look *l, const char *name) {
 
 typedef struct {
     int f_due, f_source, f_on, f_check, f_state_get, f_state_set, f_done, f_error, f_begin, f_put, f_get, f_fit, f_plan,
-        f_flag, f_set;
+        f_flag, f_set, f_marked;
 } Natives;
 
 // A catch block whose error may itself fail to print: the second trap reports it without its text.
@@ -123,9 +124,9 @@ static void catch_block(Asm *a, const Natives *n, int l_catch, int l_catch2, int
     op(a, wt_op(ORet, 1, rvoid));
 }
 
-// Setup: (battle.Battle)->void, runs the setup script when the native half says it is due.
-enum { S_B, S_VOID, S_ZERO, S_LEN, S_BATTLE, S_GAME, S_BYTES, S_SOURCE, S_PARSER, S_ORIGIN, S_LINE, S_EXPR, S_INTERP,
-       S_VARS, S_KEYB, S_KEYL, S_KEY, S_VAL, S_RESOLVE, S_NUM, S_STATE, S_MAP, S_RESULT, S_ERR, S_ERR2, S_NULL, S_NREGS };
+// Setup: (battle.Battle)->void, runs the setup script when the native half says it is due; null puts marks back.
+enum { S_B, S_VOID, S_ZERO, S_LEN, S_BATTLE, S_BYTES, S_SOURCE, S_PARSER, S_ORIGIN, S_LINE, S_EXPR, S_INTERP, S_VARS,
+       S_KEYB, S_KEYL, S_KEY, S_VAL, S_RESOLVE, S_NUM, S_STATE, S_MAP, S_RESULT, S_ERR, S_ERR2, S_NULL, S_NREGS };
 
 typedef struct {
     Asm *a;
@@ -143,12 +144,12 @@ static void bind(Binder *b, const char *name, int value) {
 static int add_setup(HlCode *c, HlEdit *e, const int *fn, const Natives *n, Look *l, int tbattle, int file, int line) {
     const HlType *parse = &c->types[c->functions[fn[F_PARSE]].type];
     int tvoid = ty(l, HVOID, NULL), ti32 = ty(l, HI32, NULL), tbytes = ty(l, HBYTES, NULL), tdyn = ty(l, HDYN, NULL);
-    int tinterp = c->types[c->functions[fn[F_INTERP]].type].args[0], tvars, tgame;
-    int f_vars = fld(l, tinterp, "variables", &tvars), f_game = fld(l, tbattle, "game", &tgame);
+    int tinterp = c->types[c->functions[fn[F_INTERP]].type].args[0], tvars;
+    int f_vars = fld(l, tinterp, "variables", &tvars);
     int tmap = c->types[c->functions[fn[F_MAP]].type].args[0];
     int t_setup = fun_type(l, 1, tbattle, -1, tvoid, "(battle.Battle)->void");
     if (!l->ok || tvars != c->types[c->functions[fn[F_SET]].type].args[0]) return -1;
-    const int regs[S_NREGS] = {tbattle, tvoid, ti32, ti32, tdyn, tgame, tbytes, parse->args[1], parse->args[0],
+    const int regs[S_NREGS] = {tbattle, tvoid, ti32, ti32, tdyn, tbytes, parse->args[1], parse->args[0],
                                parse->args[1], parse->args[3], parse->ret, tinterp, tvars, tbytes, ti32,
                                parse->args[1], tdyn, c->functions[fn[F_RESOLVE]].type, ti32, tdyn, tmap, tdyn, tdyn,
                                tdyn, tdyn};
@@ -172,9 +173,6 @@ static int add_setup(HlCode *c, HlEdit *e, const int *fn, const Natives *n, Look
     op(&a, wt_op(OCall1, 3, S_VOID, wt_findex(c, fn[F_INTERP]), S_INTERP));
     op(&a, wt_op(OField, 3, S_VARS, S_INTERP, f_vars));
     bind(&b, "battle", S_BATTLE);
-    op(&a, wt_op(OField, 3, S_GAME, S_B, f_game));
-    op(&a, wt_op(OMov, 2, S_VAL, S_GAME));
-    bind(&b, "game", S_VAL);
     op(&a, wt_op(OStaticClosure, 2, S_RESOLVE, wt_findex(c, fn[F_RESOLVE])));
     op(&a, wt_op(OMov, 2, S_VAL, S_RESOLVE));
     bind(&b, "cls", S_VAL);
@@ -200,6 +198,42 @@ static int add_setup(HlCode *c, HlEdit *e, const int *fn, const Natives *n, Look
     catch_block(&a, n, L_CATCH, L_CATCH2, S_ERR, S_ERR2, S_NULL, S_VOID);
     resolve(&a);
     HlFun *f = hl_fun_new(t_setup, S_NREGS, regs, a.ops, a.n, file, line);
+    free(a.ops);
+    int findex = f ? hl_edit_add(e, f) : -1;
+    hl_fun_free(f);
+    return findex;
+}
+
+// P: ()->void, first in Shadows.filterPasses: outside a battle, the marks go back, or static shadow modes draw them.
+enum { P_VOID, P_MARKED, P_GAMECLS, P_GAME, P_BATTLE, P_MODE, P_BMODE, P_NREGS };
+
+static int add_putback(HlCode *c, HlEdit *e, const Natives *n, Look *l, int f_setup, int tbattle, int file, int line) {
+    int tvoid = ty(l, HVOID, NULL), tbool = ty(l, HBOOL, NULL), tgamecls = ty(l, HOBJ, "$Game"), tgame, tmode, tx;
+    int f_inst = fld(l, tgamecls, "inst", &tgame), f_battle = fld(l, tgame, "battle", &tx);
+    int f_gmode = fld(l, tgame, "mode", &tmode);
+    int g_game = class_global(l, tgame);
+    int t_putback = fun_type(l, 0, -1, -1, tvoid, "()->void");
+    if (!l->ok) return -1;
+    const int regs[P_NREGS] = {tvoid, tbool, tgamecls, tgame, tbattle, tmode, tmode};
+    enum { L_OUT, L_PUTBACK };
+    Asm a;
+    asm_begin(&a, 16);
+    op(&a, wt_op(OCall0, 2, P_MARKED, n->f_marked));
+    jump(&a, wt_op(OJFalse, 2, P_MARKED, 0), L_OUT);
+    op(&a, wt_op(OGetGlobal, 2, P_GAMECLS, g_game));
+    op(&a, wt_op(OField, 3, P_GAME, P_GAMECLS, f_inst));
+    jump(&a, wt_op(OJNull, 2, P_GAME, 0), L_PUTBACK);
+    op(&a, wt_op(OField, 3, P_BATTLE, P_GAME, f_battle));
+    op(&a, wt_op(OField, 3, P_MODE, P_GAME, f_gmode));
+    op(&a, wt_op(OUnsafeCast, 2, P_BMODE, P_BATTLE));
+    jump(&a, wt_op(OJEq, 3, P_MODE, P_BMODE, 0), L_OUT);
+    mark(&a, L_PUTBACK);
+    op(&a, wt_op(ONull, 1, P_BATTLE));
+    op(&a, wt_op(OCall1, 3, P_VOID, f_setup, P_BATTLE));
+    mark(&a, L_OUT);
+    op(&a, wt_op(ORet, 1, P_VOID));
+    resolve(&a);
+    HlFun *f = hl_fun_new(t_putback, P_NREGS, regs, a.ops, a.n, file, line);
     free(a.ops);
     int findex = f ? hl_edit_add(e, f) : -1;
     hl_fun_free(f);
@@ -629,6 +663,7 @@ static int apply(HlCode *c, HlEdit *e, const int *fn) {
         !wt_signature(c, fn[F_PROCESS],
                       "(h3d.pass.DirShadowMap,h3d.pass.PassList,h3d.mat.Texture,(h3d.pass.PassList)->void)->h3d.mat.Texture") ||
         !wt_signature(c, fn[F_SYNC], "(h3d.pass.DirShadowMap,h3d.mat.Texture)->void") ||
+        !wt_signature(c, fn[F_FILTER], "(h3d.pass.Shadows,h3d.pass.PassList)->bool") ||
         !wt_signature(c, fn[F_CAMUPDATE], "(h3d.Camera)->void") ||
         !wt_signature(c, fn[F_TEXNEW], "(h3d.mat.Texture,i32,i32,hl.types.ArrayObj,hxd.PixelFormat)->void") ||
         !wt_signature(c, fn[F_TEXDISPOSE], "(h3d.mat.Texture)->void") ||
@@ -656,6 +691,7 @@ static int apply(HlCode *c, HlEdit *e, const int *fn) {
     int t_source = fun_type(&l, 1, ti32, -1, tbytes, "(i32)->bytes");
     int t_give = fun_type(&l, 0, -1, -1, tdyn, "()->dynamic");
     int t_take = fun_type(&l, 1, tdyn, -1, tvoid, "(dynamic)->void");
+    int t_marked = fun_type(&l, 0, -1, -1, tbool, "()->bool");
     if (!l.ok) return -1;
     Natives n = {
         hl_edit_native(e, "wtfix", "shadow_due", t_due),     hl_edit_native(e, "wtfix", "shadow_source", t_source),
@@ -665,7 +701,7 @@ static int apply(HlCode *c, HlEdit *e, const int *fn) {
         hl_edit_native(e, "wtfix", "shadow_begin", t_begin), hl_edit_native(e, "wtfix", "shadow_put", t_put),
         hl_edit_native(e, "wtfix", "shadow_get", t_get),     hl_edit_native(e, "wtfix", "shadow_fit", t_int),
         hl_edit_native(e, "wtfix", "shadow_plan", t_plan),   hl_edit_native(e, "wtfix", "shadow_flag", t_flag),
-        hl_edit_native(e, "wtfix", "shadow_set", t_int_void),
+        hl_edit_native(e, "wtfix", "shadow_set", t_int_void), hl_edit_native(e, "wtfix", "shadow_marked", t_marked),
     };
 
     HlFun *draw = hl_fun_decode(c, fn[F_DRAW]), *process = hl_fun_decode(c, fn[F_PROCESS]);
@@ -715,10 +751,12 @@ static int apply(HlCode *c, HlEdit *e, const int *fn) {
 
     int file = draw->files[0], line = draw->lines[0];
     int f_setup = add_setup(c, e, fn, &n, &l, tbattle, file, line);
-    int f_fit = f_setup >= 0 ? add_fit(c, e, fn, &n, &l, f_setup, tdsm, tbattle, file, line) : -1;
+    int f_putback = f_setup >= 0 ? add_putback(c, e, &n, &l, f_setup, tbattle, file, line) : -1;
+    int f_fit = f_putback >= 0 ? add_fit(c, e, fn, &n, &l, f_setup, tdsm, tbattle, file, line) : -1;
     int f_split = f_fit >= 0 ? add_split(c, e, fn, &n, &l, tdsm, g_format, file, line) : -1;
     int f_copy = f_split >= 0 ? add_copy(c, e, fn, &n, &l, tdsm, file, line) : -1;
-    if (f_copy < 0) {
+    HlFun *filter = f_copy >= 0 ? hl_fun_decode(c, fn[F_FILTER]) : NULL;
+    if (!filter) {
         hl_fun_free(draw), hl_fun_free(process);
         return -1;
     }
@@ -741,8 +779,14 @@ static int apply(HlCode *c, HlEdit *e, const int *fn) {
     HlOp copy_call = wt_op(OCall2, 4, pv, f_copy, 0, 2);
     hl_fun_insert(process, 0, &copy_call, 1);
 
-    int result = !hl_edit_replace(e, fn[F_DRAW], draw) && !hl_edit_replace(e, fn[F_PROCESS], process) ? 0 : -1;
-    hl_fun_free(draw), hl_fun_free(process);
+    HlOp putback_call = wt_op(OCall0, 2, add_reg(filter, tvoid), f_putback);
+    hl_fun_insert(filter, 0, &putback_call, 1);
+
+    int result = !hl_edit_replace(e, fn[F_DRAW], draw) && !hl_edit_replace(e, fn[F_PROCESS], process) &&
+                         !hl_edit_replace(e, fn[F_FILTER], filter)
+                     ? 0
+                     : -1;
+    hl_fun_free(draw), hl_fun_free(process), hl_fun_free(filter);
     return result;
 }
 
