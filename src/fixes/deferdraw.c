@@ -170,7 +170,7 @@ static int offset_of(HlCode *c, const char *cls, const char *name) {
 }
 
 typedef struct {
-    int begin, closure, object, end, frame, first, more, mset, mget, all, check, i2f;
+    int begin, closure, object, end, frame, first, more, mset, mget, all, check, i2f, put_back;
 } Natives;
 
 // The workers' loop: Output.draw from the sort's merge point, the list from range_first, stopping on range_more.
@@ -182,17 +182,44 @@ static int add_range_loop(HlCode *c, HlEdit *e, int draw, const Natives *nt) {
         if (f->ops[i].op == OJAlways && *hl_jump_target(&f->ops[i], 0) > i && *hl_jump_target(&f->ops[i], 0) <= load)
             merge = *hl_jump_target(&f->ops[i], 0);
     if (merge < 0) return wt_log("  Output.draw: no merge point after the sort"), hl_fun_free(f), -1;
-    // No try in the copy (Output.onShaderError is never set): a redraw's exception is thrown after the join.
+    // None of the game's tries (Output.onShaderError is never set): a redraw's exception is thrown after the join.
     for (int i = 0; i < f->nops; i++)
         if (f->ops[i].op == OTrap || f->ops[i].op == OEndTrap) f->ops[i] = wt_op(ONop, 0);
-    int item = f->ops[load].a[0], rbool = f->nregs, rdyn = f->nregs + 1;
-    if (f->nregs + 2 > 1024) return hl_fun_free(f), -1;
-    f->regs[f->nregs++] = tbool, f->regs[f->nregs++] = tdyn;
+    int item = f->ops[load].a[0], cur = f->ops[body].a[0];
+    int f_index = f->ops[body].op == OMov && f->ops[body].a[1] == item ? hl_type_field(c, f->regs[cur], "index") : -1;
+    int tindex = f_index < 0 ? -1 : hl_field_type(c, f->regs[cur], f_index);
+    if (tindex < 0) return wt_log("  Output.draw: the loop does not start by taking its pass object"), hl_fun_free(f), -1;
+    int rbool = f->nregs, rdyn = f->nregs + 1, rindex = f->nregs + 2, rexc = f->nregs + 3, rnow = f->nregs + 4;
+    int rvoid = f->nregs + 5;
+    if (f->nregs + 6 > 1024) return hl_fun_free(f), -1;
+    f->regs[f->nregs++] = tbool, f->regs[f->nregs++] = tdyn, f->regs[f->nregs++] = tindex, f->regs[f->nregs++] = tdyn;
+    f->regs[f->nregs++] = tindex, f->regs[f->nregs++] = tvoid;
     HlOp more[] = {wt_op(OCall0, 2, rbool, nt->more), wt_op(OJFalse, 2, rbool, exit)};
     hl_fun_insert(f, body, more, 2);
+    // MeshBatch.draw swaps its pass object's index with no finally: a worker giving up must not leave it swapped.
+    HlOp keep = wt_op(OField, 3, rindex, cur, f_index);
+    hl_fun_insert(f, body + 3, &keep, 1);
     f->ops[load] = wt_op(OCall0, 2, rdyn, nt->first);
     HlOp cast[] = {wt_op(OUnsafeCast, 2, item, rdyn)};
     hl_fun_insert(f, load + 1, cast, 1); // the loop's jump back still lands on its label
+    int at_catch = f->nops, rets = 0;
+    HlOp rethrow = wt_op(ORethrow, 1, rexc);
+    hl_fun_insert(f, at_catch, &rethrow, 1);
+    // Counted only when it was still swapped, the case a redraw read wrong.
+    HlOp put_back[] = {wt_op(OJNull, 2, cur, at_catch),          wt_op(OField, 3, rnow, cur, f_index),
+                       wt_op(OJEq, 3, rnow, rindex, at_catch),   wt_op(OSetField, 3, cur, f_index, rindex),
+                       wt_op(OCall0, 2, rvoid, nt->put_back)};
+    hl_fun_insert(f, at_catch, put_back, 5);
+    HlOp pop = wt_op(OEndTrap, 1, 1);
+    for (int i = at_catch - 1; i > merge; i--) {
+        if (f->ops[i].op != ORet) continue;
+        if (hl_fun_insert_entry(f, i, &pop, 1))
+            return wt_log("  Output.draw: a loop lands on a return"), hl_fun_free(f), -1;
+        rets++;
+    }
+    HlOp trap[] = {wt_op(ONull, 1, cur), wt_op(OTrap, 2, rexc, at_catch + rets)};
+    if (hl_fun_insert_entry(f, merge, trap, 2))
+        return wt_log("  Output.draw: a loop lands on the sort's merge point"), hl_fun_free(f), -1;
     HlOp skip[] = {wt_op(OJAlways, 1, merge)};
     hl_fun_insert(f, 0, skip, 1);
     int findex = hl_edit_add(e, f);
@@ -236,6 +263,7 @@ static int apply_fix(HlCode *c, HlEdit *e, const int *fn) {
         hl_edit_native(e, "wtfix", "range_more", t_b), hl_edit_native(e, "wtfix", "material_set", t_iv),
         hl_edit_native(e, "wtfix", "material_get", t_i), hl_edit_native(e, "wtfix", "params_upload_all", t_b),
         hl_edit_native(e, "wtfix", "worker_check", t_v), hl_edit_native(e, "wtfix", "i32_to_f32", t_if),
+        hl_edit_native(e, "wtfix", "range_put_back", t_v),
     };
     int range = add_range_loop(c, e, fn[0], &nt);
     if (range < 0) return -1;

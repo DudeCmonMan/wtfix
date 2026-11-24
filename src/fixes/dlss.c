@@ -478,7 +478,7 @@ static int end(HlCode *c, HlEdit *e, int function, const Natives *n) {
     return result;
 }
 
-// Ops 46-47: skip render() when computing statics; op 51: resetTarget. Size and bias set after 47, bias cleared at 51.
+// Ops 46-47: skip render() when computing statics; op 51: resetTarget. Size and bias set after 47, reset at 51.
 static int process(HlCode *c, HlEdit *e, int function, const Natives *n) {
     HlFun *f = hl_fun_decode(c, function);
     int tctx, tengine, tx, ti32 = hl_find_type(c, HI32, NULL), tpbr = hl_find_type(c, HOBJ, "h3d.scene.pbr.Renderer");
@@ -487,9 +487,12 @@ static int process(HlCode *c, HlEdit *e, int function, const Natives *n) {
     int f_ctx = ok ? field_of(c, f->regs[0], "ctx", &tctx) : -1;
     int f_engine = f_ctx >= 0 ? field_of(c, tctx, "engine", &tengine) : -1;
     int f_static = f_ctx >= 0 ? field_of(c, tctx, "computingStatic", &tx) : -1;
+    int f_res_w = f_ctx >= 0 ? field_of(c, tctx, "renderResolutionWidth", &tx) : -1;
+    int f_res_h = f_ctx >= 0 ? field_of(c, tctx, "renderResolutionHeight", &tx) : -1;
     int f_width = f_engine >= 0 ? field_of(c, tengine, "width", &tx) : -1;
     int f_height = f_engine >= 0 ? field_of(c, tengine, "height", &tx) : -1;
-    if (!ok || f_height < 0 || f_width < 0 || f->ops[46].a[2] != f_static || tx != ti32) {
+    if (!ok || f_height < 0 || f_width < 0 || f_res_w < 0 || f_res_h < 0 || f->ops[46].a[2] != f_static ||
+        tx != ti32) {
         wt_log("  Renderer.process: ops 46-51 are not \"if (ctx.computingStatic) ... else render(); resetTarget()\"");
         hl_fun_free(f);
         return -1;
@@ -499,11 +502,27 @@ static int process(HlCode *c, HlEdit *e, int function, const Natives *n) {
     int rctx = add_reg(f, tctx), reng = add_reg(f, tengine), rw = add_reg(f, ti32), rh = add_reg(f, ti32);
     int rsixteen = add_reg(f, ti32), rpacked = add_reg(f, ti32), rdyn = add_reg(f, tdyn), rok = add_reg(f, tbool);
     int rmask = add_reg(f, ti32), rpbr = add_reg(f, tpbr), rvoid = add_reg(f, tvoid);
+    int rres = add_reg(f, ti32);
+    // A frame DLSS skipped keeps its size and small default depth: the scene's next full-size frame would throw.
+    HlOp back[] = {
+        wt_op(OUnsafeCast, 2, rpbr, 0),
+        wt_op(OCall3, 5, rvoid, n->set_res, rpbr, rw, rh),
+    };
+    int nback = sizeof back / sizeof back[0];
+    hl_fun_insert(f, 51, back, nback);
     HlOp clear[] = {
         wt_op(OInt, 2, rmask, hl_edit_int(e, 0)),
         wt_op(OSetGlobal, 2, n->g_bias, rmask),
+        wt_op(OField, 3, rctx, 0, f_ctx),
+        wt_op(OField, 3, reng, rctx, f_engine),
+        wt_op(OField, 3, rw, reng, f_width),
+        wt_op(OField, 3, rh, reng, f_height),
+        wt_op(OField, 3, rres, rctx, f_res_w),
+        wt_op(OJNotEq, 3, rres, rw, 51),
+        wt_op(OField, 3, rres, rctx, f_res_h),
+        wt_op(OJEq, 3, rres, rh, 51 + nback),
     };
-    hl_fun_insert(f, 51, clear, 2);
+    hl_fun_insert(f, 51, clear, sizeof clear / sizeof clear[0]);
     HlOp size[] = {
         wt_op(OJTrue, 2, 2, 47),
         wt_op(OField, 3, rctx, 0, f_ctx),

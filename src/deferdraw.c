@@ -137,7 +137,7 @@ static int hl_ready(void) {
 }
 
 static struct {
-    uint64_t frames, splits, unsplit, redrawn, worker_errors, redraw_errors, aborted;
+    uint64_t frames, splits, unsplit, redrawn, worker_errors, redraw_errors, aborted, put_back, put_back_threw;
 } stats;
 static double pass_ticks;
 static uint64_t pass_at;
@@ -300,7 +300,7 @@ typedef struct {
     ID3D11DeviceContext *context;
     ID3D11CommandList *list;
     void *first;
-    int count, left, failed, threw;
+    int count, left, failed, threw, put_back;
     int calls0, switches0, dispatches0;
     double tris0;
 } Worker;
@@ -319,7 +319,7 @@ static DWORD WINAPI worker_main(void *arg) {
         WaitForSingleObject(w->go, INFINITE);
         if (!test_range) hl.blocking(0);
         TlsSetValue(tls_context, w->context);
-        ranged = w, material = -1; // a range given up inside render left it set
+        ranged = w, material = -1, w->put_back = 0; // a range given up inside render left material set
         unsigned char exception = 0;
         void *thrown = NULL;
         if (test_range) exception = (unsigned char)test_range();
@@ -464,6 +464,16 @@ static int redraw(Worker *w) {
     return exception;
 }
 
+// Logged at 1, 10, 100... times: the case that once left a scene black.
+static void put_back_seen(int threw) {
+    uint64_t n = ++stats.put_back, m = n;
+    stats.put_back_threw += threw;
+    while (m % 10 == 0) m /= 10;
+    if (m == 1)
+        wt_log("deferdraw: a worker gave up mid-draw with a pass object's index swapped, put back: %llu times now, "
+               "%llu of their redraws threw", (unsigned long long)n, (unsigned long long)stats.put_back_threw);
+}
+
 // 1 when a redraw threw: the plain draw stops there, so the later ranges are dropped.
 static int threads_end(void) {
     join();
@@ -472,7 +482,10 @@ static int threads_end(void) {
     for (int k = 1; k < nsplit; k++) {
         Worker *w = &workers[k];
         if (threw) RELEASE(w->list);
-        else if (w->failed) RELEASE(w->list), threw = redraw(w);
+        else if (w->failed) {
+            RELEASE(w->list), threw = redraw(w);
+            if (w->put_back) put_back_seen(threw);
+        }
         else ID3D11DeviceContext_ExecuteCommandList(immediate, w->list, TRUE), RELEASE(w->list);
         w->list = NULL;
         stats.worker_errors += w->threw;
@@ -509,6 +522,9 @@ HL_PRIM(range_first)
 static int range_more(void) { return ranged->left-- > 0; }
 HL_PRIM(range_more)
 
+static void range_put_back(void) { ranged->put_back = 1; }
+HL_PRIM(range_put_back)
+
 // Before anything that fills a cache shared by every thread: a worker gives its range up (the main thread draws it).
 static void worker_check(void) {
     if (on_worker) hl.throw_(NULL);
@@ -540,5 +556,7 @@ int wt_defer_stats(char *out, int size) {
         n += snprintf(out + n, size - n, "; the main pass %.2f ms on the main thread", 1000 * pass_ticks / hz.QuadPart);
     if (stats.redrawn && n < size)
         n += snprintf(out + n, size - n, "; %llu ranges redrawn", (unsigned long long)stats.redrawn);
+    if (stats.put_back && n < size)
+        n += snprintf(out + n, size - n, " (%llu indexes put back)", (unsigned long long)stats.put_back);
     return n;
 }
